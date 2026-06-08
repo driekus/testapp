@@ -18,8 +18,38 @@ export function distanceMeters(lat1, lng1, lat2, lng2) {
   return EARTH_RADIUS_METERS * arc
 }
 
-export function randomLetter() {
-  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-  return letters[Math.floor(Math.random() * letters.length)]
+export function randomLetter(letterPool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
+  if (!letterPool || letterPool.length === 0) {
+    return 'A'
+  }
+
+  return letterPool[Math.floor(Math.random() * letterPool.length)]
 }
+
+export function travelMetrics(previousPosition, nextPosition) {
+  const distance = distanceMeters(
+    previousPosition.latitude,
+    previousPosition.longitude,
+    nextPosition.latitude,
+    nextPosition.longitude,
+  )
+
+  const elapsedSeconds = (nextPosition.timestamp - previousPosition.timestamp) / 1000
+  const speedMetersPerSecond = elapsedSeconds > 0 ? distance / elapsedSeconds : Number.POSITIVE_INFINITY
+
+  return {
+    distance,
+    elapsedSeconds,
+    speedMetersPerSecond,
+  }
+}
+
+export function isQuickJump(previousPosition, nextPosition, limits) {
+  const { maxSpeedMetersPerSecond, maxJumpDistanceMeters } = limits
+  const metrics = travelMetrics(previousPosition, nextPosition)
+  return (
+    metrics.distance > maxJumpDistanceMeters || metrics.speedMetersPerSecond > maxSpeedMetersPerSecond
+  )
+}
+
 
