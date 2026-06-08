@@ -3,6 +3,7 @@ import { distanceMeters, isQuickJump } from './gameLogic.js'
 import { defaultConfig } from './config.js'
 import { hasSupabaseConfig } from './supabaseClient.js'
 import { fetchSharedConfig } from './userConfigService.js'
+import { getLanguage, setLanguage, t } from './i18n.js'
 
 const LOCATION_RADIUS_METERS = 5
 const MAX_ALLOWED_GPS_ACCURACY_METERS = 11
@@ -11,6 +12,8 @@ const MAX_SPEED_METERS_PER_SECOND = 22
 const MAX_JUMP_DISTANCE_METERS = 250
 const HIGH_ACCURACY_TIMEOUT_MS = 20000
 const BALANCED_TIMEOUT_MS = 30000
+const language = getLanguage()
+const tm = (key, params) => t(language, 'main', key, params)
 
 const state = {
   route: defaultConfig().route,
@@ -22,8 +25,8 @@ const state = {
   lastLetterGrantedAt: 0,
   geoWatchId: null,
   showMapView: false,
-  statusMessage: 'Tap "Enable location" to begin.',
-  configStatus: 'Loading route…',
+  statusMessage: tm('tapToBegin'),
+  configStatus: tm('configLoading'),
 }
 
 function buildGoogleDirectionsUrl(target) {
@@ -59,52 +62,61 @@ const app = document.querySelector('#app')
 
 app.innerHTML = `
   <main class="container">
-<!--    <a class="admin-link" href="/admin.html">⚙ Admin settings</a>-->
-    <h1>5-Location Letter Quest</h1>
-    <p class="hint">Visit each location in order. Each location gives its configured letter.</p>
+    <div class="actions" style="justify-content:space-between; margin-bottom: 8px;">
+<!--      <a class="admin-link" href="/admin.html">⚙ ${tm('adminSettings')}</a>-->
+      <label for="language-select">${tm('languageLabel')}:
+        <select id="language-select">
+          <option value="en" ${language === 'en' ? 'selected' : ''}>EN</option>
+          <option value="nl" ${language === 'nl' ? 'selected' : ''}>NL</option>
+        </select>
+      </label>
+    </div>
+    <h1>${tm('title')}</h1>
+    <p class="hint">${tm('hint')}</p>
     <p id="config-status" class="muted"></p>
 
     <section class="card">
-      <h2>Current Target</h2>
+      <h2>${tm('currentTarget')}</h2>
       <p id="target-name"></p>
-      <p id="target-coords" class="muted"></p>
+<!--      <p id="target-coords" class="muted"></p>-->
       <p id="distance" class="distance"></p>
     </section>
 
     <section class="card">
-      <h2>Progress</h2>
+      <h2>${tm('progress')}</h2>
       <p id="progress"></p>
       <p id="letters" class="letters"></p>
     </section>
 
     <section class="card">
-      <h2>Status</h2>
+      <h2>${tm('status')}</h2>
       <p id="status"></p>
       <p id="pending-letter" class="pending"></p>
       <div class="actions">
-        <button id="enable-location" type="button">Enable location</button>
-        <button id="confirm-letter" type="button" disabled>Confirm letter and next location</button>
+        <button id="enable-location" type="button">${tm('enableLocation')}</button>
+        <button id="confirm-letter" type="button" disabled>${tm('confirmAndNext')}</button>
       </div>
     </section>
 
-    <section class="card">
-      <h2>Optional Map View</h2>
-      <label class="toggle-row" for="toggle-map-view">
-        <input id="toggle-map-view" type="checkbox" />
-        Show map tools (Google Maps/OpenStreetMap)
-      </label>
-      <div id="map-panel" class="map-panel hidden">
-        <div class="actions">
-          <a id="google-nav-link" class="link-button" target="_blank" rel="noopener noreferrer">Open in Google Maps</a>
-          <a id="osm-nav-link" class="link-button" target="_blank" rel="noopener noreferrer">Open in OpenStreetMap</a>
-        </div>
-        <iframe id="osm-embed" class="map-embed" title="OpenStreetMap target preview" loading="lazy"></iframe>
-      </div>
-    </section>
+<!--    <section class="card">-->
+<!--      <h2>${tm('optionalMapView')}</h2>-->
+<!--      <label class="toggle-row" for="toggle-map-view">-->
+<!--        <input id="toggle-map-view" type="checkbox" />-->
+<!--        ${tm('showMapTools')}-->
+<!--      </label>-->
+<!--      <div id="map-panel" class="map-panel hidden">-->
+<!--        <div class="actions">-->
+<!--          <a id="google-nav-link" class="link-button" target="_blank" rel="noopener noreferrer">${tm('openGoogleMaps')}</a>-->
+<!--          <a id="osm-nav-link" class="link-button" target="_blank" rel="noopener noreferrer">${tm('openOpenStreetMap')}</a>-->
+<!--        </div>-->
+<!--        <iframe id="osm-embed" class="map-embed" title="OpenStreetMap target preview" loading="lazy"></iframe>-->
+<!--      </div>-->
+<!--    </section>-->
   </main>
 `
 
 const els = {
+  languageSelect: document.querySelector('#language-select'),
   configStatus: document.querySelector('#config-status'),
   targetName: document.querySelector('#target-name'),
   targetCoords: document.querySelector('#target-coords'),
@@ -129,27 +141,30 @@ function updateUi() {
   els.configStatus.textContent = state.configStatus
 
   if (!currentTarget) {
-    els.targetName.textContent = 'All 5 locations completed!'
+    els.targetName.textContent = tm('allCompleted')
     els.targetCoords.textContent = ''
     els.distance.textContent = ''
-    els.progress.textContent = 'Great job! You completed the route.'
+    els.progress.textContent = tm('greatJob')
     els.pendingLetter.textContent = ''
     els.confirmLetter.disabled = true
     els.status.textContent = state.statusMessage
-    els.letters.textContent = `Letters: ${state.collectedLetters.join(' ')}`
+    els.letters.textContent = `${tm('letters')}: ${state.collectedLetters.join(' ')}`
     els.mapPanel.classList.add('hidden')
     return
   }
 
   els.targetName.textContent = `${state.currentLocationIndex + 1}. ${currentTarget.name}`
-  els.targetCoords.textContent = `Lat ${currentTarget.lat.toFixed(4)}, Lng ${currentTarget.lng.toFixed(4)}`
-  els.progress.textContent = `Completed: ${completedCount}/5`
+  els.targetCoords.textContent = tm('targetLine', {
+    lat: currentTarget.lat.toFixed(4),
+    lng: currentTarget.lng.toFixed(4),
+  })
+  els.progress.textContent = tm('completed', { count: completedCount })
   els.letters.textContent = state.collectedLetters.length
-    ? `Letters: ${state.collectedLetters.join(' ')}`
-    : 'Letters: -'
+    ? `${tm('letters')}: ${state.collectedLetters.join(' ')}`
+    : tm('lettersEmpty')
   els.status.textContent = state.statusMessage
   els.pendingLetter.textContent = state.pendingLetter
-    ? `Your letter: ${state.pendingLetter}. Confirm to continue.`
+    ? tm('pendingLetter', { letter: state.pendingLetter })
     : ''
   els.confirmLetter.disabled = !state.pendingLetter
 
@@ -171,9 +186,14 @@ function updateUi() {
         currentTarget.lng,
       ),
     )
-    els.distance.textContent = `Distance: ${meters}m (target ${Math.round(effectiveRadius)}m, base ${LOCATION_RADIUS_METERS}m, accuracy ${Math.round(state.userPosition.accuracy)}m)`
+    els.distance.textContent = tm('distanceLine', {
+      meters,
+      // target: Math.round(effectiveRadius),
+      // base: LOCATION_RADIUS_METERS,
+      // accuracy: Math.round(state.userPosition.accuracy),
+    })
   } else {
-    els.distance.textContent = 'Distance: unknown until location is enabled.'
+    els.distance.textContent = tm('distanceUnknown')
   }
 }
 
@@ -202,15 +222,18 @@ function checkArrival() {
   if (meters <= effectiveRadius) {
     const cooldownLeft = remainingCooldownMs()
     if (cooldownLeft > 0) {
-      state.statusMessage = `Cooldown active (${Math.ceil(cooldownLeft / 1000)}s). Stay near ${currentTarget.name}.`
+      state.statusMessage = tm('cooldown', {
+        seconds: Math.ceil(cooldownLeft / 1000),
+        name: currentTarget.name,
+      })
       updateUi()
       return
     }
     state.pendingLetter = currentTarget.letter
     state.lastLetterGrantedAt = Date.now()
-    state.statusMessage = `You reached ${currentTarget.name}!`
+    state.statusMessage = tm('reached', { name: currentTarget.name })
   } else {
-    state.statusMessage = `Move closer to ${currentTarget.name}.`
+    state.statusMessage = tm('moveCloser', { name: currentTarget.name })
   }
 
   updateUi()
@@ -225,7 +248,10 @@ function handleLocationSuccess(position) {
   }
 
   if (candidate.accuracy > MAX_ALLOWED_GPS_ACCURACY_METERS) {
-    state.statusMessage = `GPS accuracy too low (${Math.round(candidate.accuracy)}m). The game is not possible right now. Need ${MAX_ALLOWED_GPS_ACCURACY_METERS}m or better.`
+    state.statusMessage = tm('gpsTooLow', {
+      accuracy: Math.round(candidate.accuracy),
+      need: MAX_ALLOWED_GPS_ACCURACY_METERS,
+    })
     updateUi()
     return
   }
@@ -237,7 +263,7 @@ function handleLocationSuccess(position) {
       maxJumpDistanceMeters: MAX_JUMP_DISTANCE_METERS,
     })
   ) {
-    state.statusMessage = 'Unrealistic location jump detected. Waiting for stable GPS.'
+    state.statusMessage = tm('quickJump')
     updateUi()
     return
   }
@@ -255,13 +281,13 @@ function startWatch(options, fallbackToBalanced) {
       if (error.code === error.TIMEOUT && fallbackToBalanced) {
         navigator.geolocation.clearWatch(state.geoWatchId)
         state.geoWatchId = null
-        state.statusMessage = 'High-accuracy GPS timed out. Retrying with balanced accuracy...'
+        state.statusMessage = tm('highAccTimeout')
         updateUi()
         startWatch({ enableHighAccuracy: false, maximumAge: 15000, timeout: BALANCED_TIMEOUT_MS }, false)
         return
       }
 
-      state.statusMessage = `Location error: ${error.message}`
+      state.statusMessage = tm('locationError', { message: error.message })
       updateUi()
     },
     options,
@@ -270,18 +296,18 @@ function startWatch(options, fallbackToBalanced) {
 
 function startLocationTracking() {
   if (!navigator.geolocation) {
-    state.statusMessage = 'Geolocation is not supported on this device.'
+    state.statusMessage = tm('geolocationUnsupported')
     updateUi()
     return
   }
 
   if (state.geoWatchId !== null) {
-    state.statusMessage = 'Location tracking is already active.'
+    state.statusMessage = tm('trackingActive')
     updateUi()
     return
   }
 
-  state.statusMessage = 'Requesting permission…'
+  state.statusMessage = tm('requestingPermission')
   updateUi()
 
   startWatch(
@@ -298,9 +324,9 @@ function confirmLetter() {
   state.currentLocationIndex += 1
 
   if (state.currentLocationIndex >= state.route.length) {
-    state.statusMessage = 'Quest complete. All letters collected!'
+    state.statusMessage = tm('questComplete')
   } else {
-    state.statusMessage = `Next target unlocked: ${state.route[state.currentLocationIndex].name}`
+    state.statusMessage = tm('nextTarget', { name: state.route[state.currentLocationIndex].name })
   }
 
   updateUi()
@@ -311,6 +337,10 @@ els.confirmLetter.addEventListener('click', confirmLetter)
 els.toggleMapView.addEventListener('change', (e) => {
   state.showMapView = e.target.checked
   updateUi()
+})
+els.languageSelect.addEventListener('change', (event) => {
+  setLanguage(event.target.value)
+  window.location.reload()
 })
 
 if ('serviceWorker' in navigator) {
@@ -324,12 +354,12 @@ async function loadConfig() {
   try {
     const config = await fetchSharedConfig()
     state.route = config.route
-    resetQuestProgress('Tap "Enable location" to begin.')
+    resetQuestProgress(tm('tapToBegin'))
     state.configStatus = hasSupabaseConfig
-      ? 'Route loaded from Supabase.'
-      : 'Using default route (Supabase not configured).'
+      ? tm('configLoaded')
+      : tm('configDefault')
   } catch (error) {
-    state.configStatus = `Could not load route from Supabase: ${error.message}. Using defaults.`
+    state.configStatus = tm('configFailed', { message: error.message })
   }
   updateUi()
 }

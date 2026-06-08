@@ -38,6 +38,7 @@ npm run dev
 
 - Game: `/`
 - Admin: `/admin.html`
+- Language switch: both pages support `EN` and `NL` from the top selector.
 
 ## Admin page
 

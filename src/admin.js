@@ -16,6 +16,10 @@ import {
   supabase,
 } from './supabaseClient.js'
 import { fetchSharedConfig, saveSharedConfig } from './userConfigService.js'
+import { getLanguage, setLanguage, t } from './i18n.js'
+
+const language = getLanguage()
+const ta = (key, params) => t(language, 'admin', key, params)
 
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -31,8 +35,8 @@ const state = {
   marker: null,
   user: null,
   authStatusMessage: hasSupabaseConfig
-    ? 'Sign in to edit shared route settings.'
-    : 'Supabase env vars missing. Admin save is disabled.',
+    ? ta('signInToLoad')
+    : ta('envMissing'),
 }
 
 const app = document.querySelector('#admin-app')
@@ -40,49 +44,58 @@ const app = document.querySelector('#admin-app')
 app.innerHTML = `
   <main class="admin-container">
     <div class="top-row">
-      <h1>Letter Quest Admin</h1>
-      <a class="link" href="/">Back to game</a>
+      <h1>${ta('pageTitle')}</h1>
+      <div>
+        <label for="language-select">${ta('languageLabel')}:
+          <select id="language-select">
+            <option value="en" ${language === 'en' ? 'selected' : ''}>EN</option>
+            <option value="nl" ${language === 'nl' ? 'selected' : ''}>NL</option>
+          </select>
+        </label>
+        <a class="link" href="/">${ta('backToGame')}</a>
+      </div>
     </div>
 
     <section class="card">
-      <h2>Account</h2>
+      <h2>${ta('account')}</h2>
       <p id="auth-user" class="small"></p>
       <p id="auth-status" class="small"></p>
       <div class="auth-grid">
-        <input id="auth-email" type="email" placeholder="Email" />
-        <input id="auth-password" type="password" placeholder="Password" />
+        <input id="auth-email" type="email" placeholder="${ta('emailPlaceholder')}" />
+        <input id="auth-password" type="password" placeholder="${ta('passwordPlaceholder')}" />
       </div>
       <div class="actions-row">
-        <button id="sign-in" type="button">Sign in</button>
-        <button id="sign-up" type="button">Sign up</button>
-        <button id="sign-in-github" type="button">Sign in with GitHub</button>
-        <button id="sign-out" type="button">Sign out</button>
-        <button id="reload-config" type="button">Reload cloud config</button>
+        <button id="sign-in" type="button">${ta('signIn')}</button>
+        <button id="sign-up" type="button">${ta('signUp')}</button>
+        <button id="sign-in-github" type="button">${ta('signInGitHub')}</button>
+        <button id="sign-out" type="button">${ta('signOut')}</button>
+        <button id="reload-config" type="button">${ta('reloadCloudConfig')}</button>
       </div>
     </section>
 
-    <p class="hint">Set names, fixed letters, and coordinates manually or click the map.</p>
+    <p class="hint">${ta('hint')}</p>
 
     <section class="card">
-      <h2>5 Locations</h2>
+      <h2>${ta('locationsHeader')}</h2>
       <div id="rows" class="rows"></div>
     </section>
 
     <section class="card">
-      <h2>Pick Coordinates on Map (OpenStreetMap)</h2>
-      <p class="small">Select a location row first, then click on the map.</p>
+      <h2>${ta('mapHeader')}</h2>
+      <p class="small">${ta('mapHint')}</p>
       <div id="map" class="map"></div>
     </section>
 
     <section class="card actions">
-      <button id="save-config" type="button">Save Settings</button>
-      <button id="reset-defaults" type="button" class="ghost">Reset Defaults</button>
+      <button id="save-config" type="button">${ta('saveSettings')}</button>
+      <button id="reset-defaults" type="button" class="ghost">${ta('resetDefaults')}</button>
       <p id="status" class="status"></p>
     </section>
   </main>
 `
 
 const els = {
+  languageSelect: document.querySelector('#language-select'),
   authUser: document.querySelector('#auth-user'),
   authStatus: document.querySelector('#auth-status'),
   authEmail: document.querySelector('#auth-email'),
@@ -101,20 +114,20 @@ const els = {
 function rowTemplate(point, index) {
   return `
     <div class="row" data-row-index="${index}">
-      <div class="row-title">${index + 1}. Location</div>
-      <label>Name
+      <div class="row-title">${index + 1}. ${ta('rowLocation')}</div>
+      <label>${ta('name')}
         <input type="text" data-field="name" data-row-index="${index}" value="${point.name}" />
       </label>
-      <label>Letter (A-Z)
+      <label>${ta('letterAZ')}
         <input type="text" maxlength="1" data-field="letter" data-row-index="${index}" value="${point.letter}" />
       </label>
-      <label>Latitude
+      <label>${ta('latitude')}
         <input type="number" step="any" data-field="lat" data-row-index="${index}" value="${point.lat}" />
       </label>
-      <label>Longitude
+      <label>${ta('longitude')}
         <input type="number" step="any" data-field="lng" data-row-index="${index}" value="${point.lng}" />
       </label>
-      <button type="button" data-pick-row="${index}" class="pick-button">Pick from map</button>
+      <button type="button" data-pick-row="${index}" class="pick-button">${ta('pickFromMap')}</button>
     </div>
   `
 }
@@ -135,8 +148,8 @@ function setStatus(message, isError = false) {
 
 function updateAuthUi() {
   els.authUser.textContent = state.user
-    ? `Signed in as ${state.user.email}`
-    : 'Not signed in.'
+    ? ta('signedInAs', { email: state.user.email })
+    : ta('notSignedIn')
   els.authStatus.textContent = state.authStatusMessage
 
   const canSave = Boolean(state.user && hasSupabaseConfig)
@@ -167,15 +180,15 @@ function setSelectedRow(index) {
 
 function validateCoordinate(lat, lng, index) {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    throw new Error(`Row ${index + 1}: latitude/longitude must be numbers.`)
+    throw new Error(ta('rowLatLngNumbers', { row: index + 1 }))
   }
 
   if (lat < -90 || lat > 90) {
-    throw new Error(`Row ${index + 1}: latitude must be between -90 and 90.`)
+    throw new Error(ta('rowLatRange', { row: index + 1 }))
   }
 
   if (lng < -180 || lng > 180) {
-    throw new Error(`Row ${index + 1}: longitude must be between -180 and 180.`)
+    throw new Error(ta('rowLngRange', { row: index + 1 }))
   }
 }
 
@@ -185,7 +198,7 @@ function validateLetter(letter, index) {
     .replace(/[^A-Z]/g, '')
 
   if (!normalized) {
-    throw new Error(`Row ${index + 1}: letter must contain A-Z.`)
+    throw new Error(ta('rowLetterRange', { row: index + 1 }))
   }
 
   return normalized.slice(0, 1)
@@ -194,7 +207,7 @@ function validateLetter(letter, index) {
 function collectRouteFromInputs() {
   return Array.from({ length: 5 }).map((_, index) => {
     const rowInputs = getRowInputs(index)
-    const name = rowInputs.name.value.trim() || `Location ${index + 1}`
+    const name = rowInputs.name.value.trim() || `${ta('rowLocation')} ${index + 1}`
     const letter = validateLetter(rowInputs.letter.value, index)
     const lat = Number(rowInputs.lat.value)
     const lng = Number(rowInputs.lng.value)
@@ -227,7 +240,7 @@ function getCredentials() {
   const email = els.authEmail.value.trim()
   const password = els.authPassword.value
   if (!email || !password) {
-    throw new Error('Email and password are required.')
+    throw new Error(ta('emailPasswordRequired'))
   }
 
   return { email, password }
@@ -238,7 +251,7 @@ async function loadConfigForCurrentUser() {
     state.config = defaultConfig()
     state.selectedRowIndex = 0
     syncFormFromConfig(state.config)
-    setStatus('Sign in to load and save the shared route config.')
+    setStatus(ta('signInToLoad'))
     updateAuthUi()
     return
   }
@@ -246,7 +259,7 @@ async function loadConfigForCurrentUser() {
   state.config = await fetchSharedConfig()
   state.selectedRowIndex = 0
   syncFormFromConfig(state.config)
-  setStatus('Loaded shared route config from Supabase.')
+  setStatus(ta('loadedConfig'))
   updateAuthUi()
 }
 
@@ -263,14 +276,14 @@ async function refreshUserState() {
 async function saveConfigFromForm() {
   try {
     if (!state.user) {
-      throw new Error('Sign in first to save config.')
+      throw new Error(ta('saveSignInFirst'))
     }
 
     const route = collectRouteFromInputs()
     const savedConfig = await saveSharedConfig({ route })
     state.config = savedConfig
     syncFormFromConfig(savedConfig)
-    setStatus('Saved to Supabase. All players will now see this route.')
+    setStatus(ta('saveSuccess'))
   } catch (error) {
     setStatus(error.message, true)
   }
@@ -279,14 +292,14 @@ async function saveConfigFromForm() {
 async function resetDefaults() {
   try {
     if (!state.user) {
-      throw new Error('Sign in first to reset config.')
+      throw new Error(ta('resetSignInFirst'))
     }
 
     const savedConfig = await saveSharedConfig({ route: DEFAULT_ROUTE })
     state.config = savedConfig
     state.selectedRowIndex = 0
     syncFormFromConfig(savedConfig)
-    setStatus('Defaults restored and saved to Supabase.')
+    setStatus(ta('defaultsSaved'))
   } catch (error) {
     setStatus(error.message, true)
   }
@@ -314,7 +327,7 @@ function setupMap() {
       state.marker.setLatLng([lat, lng])
     }
 
-    setStatus(`Row ${state.selectedRowIndex + 1} updated from map click.`)
+    setStatus(ta('pickMapUpdated', { row: state.selectedRowIndex + 1 }))
   })
 }
 
@@ -322,10 +335,10 @@ async function handleSignIn() {
   try {
     const { email, password } = getCredentials()
     await signInWithPassword(email, password)
-    state.authStatusMessage = 'Signed in successfully.'
+    state.authStatusMessage = ta('signInSuccess')
     await refreshUserState()
   } catch (error) {
-    state.authStatusMessage = `Sign-in failed: ${error.message}`
+    state.authStatusMessage = ta('signInFailed', { message: error.message })
     updateAuthUi()
   }
 }
@@ -334,10 +347,10 @@ async function handleSignUp() {
   try {
     const { email, password } = getCredentials()
     await signUpWithPassword(email, password)
-    state.authStatusMessage = 'Account created. If email confirmation is enabled, confirm first.'
+    state.authStatusMessage = ta('signUpSuccess')
     await refreshUserState()
   } catch (error) {
-    state.authStatusMessage = `Sign-up failed: ${error.message}`
+    state.authStatusMessage = ta('signUpFailed', { message: error.message })
     updateAuthUi()
   }
 }
@@ -346,10 +359,10 @@ async function handleSignInGitHub() {
   try {
     const redirectTo = `${window.location.origin}/admin.html`
     await signInWithGitHub(redirectTo)
-    state.authStatusMessage = 'Redirecting to GitHub...'
+    state.authStatusMessage = ta('redirectingGitHub')
     updateAuthUi()
   } catch (error) {
-    state.authStatusMessage = `GitHub sign-in failed: ${error.message}`
+    state.authStatusMessage = ta('githubFailed', { message: error.message })
     updateAuthUi()
   }
 }
@@ -357,10 +370,10 @@ async function handleSignInGitHub() {
 async function handleSignOut() {
   try {
     await signOutUser()
-    state.authStatusMessage = 'Signed out.'
+    state.authStatusMessage = ta('signOutSuccess')
     await refreshUserState()
   } catch (error) {
-    state.authStatusMessage = `Sign-out failed: ${error.message}`
+    state.authStatusMessage = ta('signOutFailed', { message: error.message })
     updateAuthUi()
   }
 }
@@ -369,11 +382,11 @@ async function handleReloadConfig() {
   try {
     await refreshUserState()
     state.authStatusMessage = state.user
-      ? 'Cloud config reloaded.'
-      : 'Not signed in.'
+      ? ta('cloudReloaded')
+      : ta('notSignedIn')
     updateAuthUi()
   } catch (error) {
-    state.authStatusMessage = `Reload failed: ${error.message}`
+    state.authStatusMessage = ta('reloadFailed', { message: error.message })
     updateAuthUi()
   }
 }
@@ -385,6 +398,10 @@ els.signUp.addEventListener('click', handleSignUp)
 els.signInGitHub.addEventListener('click', handleSignInGitHub)
 els.signOut.addEventListener('click', handleSignOut)
 els.reloadConfig.addEventListener('click', handleReloadConfig)
+els.languageSelect.addEventListener('change', (event) => {
+  setLanguage(event.target.value)
+  window.location.reload()
+})
 
 setupMap()
 syncFormFromConfig(state.config)
@@ -393,7 +410,7 @@ updateAuthUi()
 if (supabase) {
   supabase.auth.onAuthStateChange(() => {
     refreshUserState().catch((error) => {
-      state.authStatusMessage = `Auth sync failed: ${error.message}`
+      state.authStatusMessage = ta('authSyncFailed', { message: error.message })
       updateAuthUi()
       setStatus(error.message, true)
     })
@@ -401,7 +418,7 @@ if (supabase) {
 }
 
 refreshUserState().catch((error) => {
-  state.authStatusMessage = `Startup error: ${error.message}`
+  state.authStatusMessage = ta('startupError', { message: error.message })
   updateAuthUi()
   setStatus(error.message, true)
 })
