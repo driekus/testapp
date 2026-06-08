@@ -4,11 +4,13 @@ import { defaultConfig } from './config.js'
 import { hasSupabaseConfig } from './supabaseClient.js'
 import { fetchSharedConfig } from './userConfigService.js'
 
-const LOCATION_RADIUS_METERS = 50
-const MIN_GPS_ACCURACY_METERS = 35
+const LOCATION_RADIUS_METERS = 5
+const MAX_ALLOWED_GPS_ACCURACY_METERS = 11
 const LETTER_COOLDOWN_MS = 12000
 const MAX_SPEED_METERS_PER_SECOND = 22
 const MAX_JUMP_DISTANCE_METERS = 250
+const HIGH_ACCURACY_TIMEOUT_MS = 20000
+const BALANCED_TIMEOUT_MS = 30000
 
 const state = {
   route: defaultConfig().route,
@@ -57,7 +59,7 @@ const app = document.querySelector('#app')
 
 app.innerHTML = `
   <main class="container">
-    <a class="admin-link" href="/admin.html">⚙ Admin settings</a>
+<!--    <a class="admin-link" href="/admin.html">⚙ Admin settings</a>-->
     <h1>5-Location Letter Quest</h1>
     <p class="hint">Visit each location in order. Each location gives its configured letter.</p>
     <p id="config-status" class="muted"></p>
@@ -157,6 +159,10 @@ function updateUi() {
   els.mapPanel.classList.toggle('hidden', !state.showMapView)
 
   if (state.userPosition) {
+    const effectiveRadius = Math.min(
+      MAX_ALLOWED_GPS_ACCURACY_METERS,
+      Math.max(LOCATION_RADIUS_METERS, state.userPosition.accuracy),
+    )
     const meters = Math.round(
       distanceMeters(
         state.userPosition.latitude,
@@ -165,7 +171,7 @@ function updateUi() {
         currentTarget.lng,
       ),
     )
-    els.distance.textContent = `Distance: ${meters}m (target ${LOCATION_RADIUS_METERS}m, accuracy ${Math.round(state.userPosition.accuracy)}m)`
+    els.distance.textContent = `Distance: ${meters}m (target ${Math.round(effectiveRadius)}m, base ${LOCATION_RADIUS_METERS}m, accuracy ${Math.round(state.userPosition.accuracy)}m)`
   } else {
     els.distance.textContent = 'Distance: unknown until location is enabled.'
   }
@@ -181,6 +187,11 @@ function checkArrival() {
   const currentTarget = state.route[state.currentLocationIndex]
   if (!currentTarget) return
 
+  const effectiveRadius = Math.min(
+    MAX_ALLOWED_GPS_ACCURACY_METERS,
+    Math.max(LOCATION_RADIUS_METERS, state.userPosition.accuracy),
+  )
+
   const meters = distanceMeters(
     state.userPosition.latitude,
     state.userPosition.longitude,
@@ -188,7 +199,7 @@ function checkArrival() {
     currentTarget.lng,
   )
 
-  if (meters <= LOCATION_RADIUS_METERS) {
+  if (meters <= effectiveRadius) {
     const cooldownLeft = remainingCooldownMs()
     if (cooldownLeft > 0) {
       state.statusMessage = `Cooldown active (${Math.ceil(cooldownLeft / 1000)}s). Stay near ${currentTarget.name}.`
@@ -203,6 +214,58 @@ function checkArrival() {
   }
 
   updateUi()
+}
+
+function handleLocationSuccess(position) {
+  const candidate = {
+    latitude: position.coords.latitude,
+    longitude: position.coords.longitude,
+    accuracy: position.coords.accuracy,
+    timestamp: position.timestamp,
+  }
+
+  if (candidate.accuracy > MAX_ALLOWED_GPS_ACCURACY_METERS) {
+    state.statusMessage = `GPS accuracy too low (${Math.round(candidate.accuracy)}m). The game is not possible right now. Need ${MAX_ALLOWED_GPS_ACCURACY_METERS}m or better.`
+    updateUi()
+    return
+  }
+
+  if (
+    state.lastTrustedPosition &&
+    isQuickJump(state.lastTrustedPosition, candidate, {
+      maxSpeedMetersPerSecond: MAX_SPEED_METERS_PER_SECOND,
+      maxJumpDistanceMeters: MAX_JUMP_DISTANCE_METERS,
+    })
+  ) {
+    state.statusMessage = 'Unrealistic location jump detected. Waiting for stable GPS.'
+    updateUi()
+    return
+  }
+
+  state.userPosition = candidate
+  state.lastTrustedPosition = candidate
+  checkArrival()
+  updateUi()
+}
+
+function startWatch(options, fallbackToBalanced) {
+  state.geoWatchId = navigator.geolocation.watchPosition(
+    handleLocationSuccess,
+    (error) => {
+      if (error.code === error.TIMEOUT && fallbackToBalanced) {
+        navigator.geolocation.clearWatch(state.geoWatchId)
+        state.geoWatchId = null
+        state.statusMessage = 'High-accuracy GPS timed out. Retrying with balanced accuracy...'
+        updateUi()
+        startWatch({ enableHighAccuracy: false, maximumAge: 15000, timeout: BALANCED_TIMEOUT_MS }, false)
+        return
+      }
+
+      state.statusMessage = `Location error: ${error.message}`
+      updateUi()
+    },
+    options,
+  )
 }
 
 function startLocationTracking() {
@@ -221,43 +284,9 @@ function startLocationTracking() {
   state.statusMessage = 'Requesting permission…'
   updateUi()
 
-  state.geoWatchId = navigator.geolocation.watchPosition(
-    (position) => {
-      const candidate = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        accuracy: position.coords.accuracy,
-        timestamp: position.timestamp,
-      }
-
-      if (candidate.accuracy > MIN_GPS_ACCURACY_METERS) {
-        state.statusMessage = `GPS accuracy too low (${Math.round(candidate.accuracy)}m). Need ≤${MIN_GPS_ACCURACY_METERS}m.`
-        updateUi()
-        return
-      }
-
-      if (
-        state.lastTrustedPosition &&
-        isQuickJump(state.lastTrustedPosition, candidate, {
-          maxSpeedMetersPerSecond: MAX_SPEED_METERS_PER_SECOND,
-          maxJumpDistanceMeters: MAX_JUMP_DISTANCE_METERS,
-        })
-      ) {
-        state.statusMessage = 'Unrealistic location jump detected. Waiting for stable GPS.'
-        updateUi()
-        return
-      }
-
-      state.userPosition = candidate
-      state.lastTrustedPosition = candidate
-      checkArrival()
-      updateUi()
-    },
-    (error) => {
-      state.statusMessage = `Location error: ${error.message}`
-      updateUi()
-    },
-    { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 },
+  startWatch(
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: HIGH_ACCURACY_TIMEOUT_MS },
+    true,
   )
 }
 
