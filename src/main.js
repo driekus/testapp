@@ -78,7 +78,7 @@ app.innerHTML = `
     <section class="card">
       <h2>${tm('currentTarget')}</h2>
       <p id="target-name"></p>
-<!--      <p id="target-coords" class="muted"></p>-->
+      <p id="target-coords" class="muted" hidden></p>
       <p id="distance" class="distance"></p>
     </section>
 
@@ -168,10 +168,10 @@ function updateUi() {
     : ''
   els.confirmLetter.disabled = !state.pendingLetter
 
-  els.googleNavLink.href = buildGoogleDirectionsUrl(currentTarget)
-  els.osmNavLink.href = buildOpenStreetMapUrl(currentTarget)
-  els.osmEmbed.src = buildOpenStreetMapEmbedUrl(currentTarget)
-  els.mapPanel.classList.toggle('hidden', !state.showMapView)
+  // els.googleNavLink.href = buildGoogleDirectionsUrl(currentTarget)
+  // els.osmNavLink.href = buildOpenStreetMapUrl(currentTarget)
+  // els.osmEmbed.src = buildOpenStreetMapEmbedUrl(currentTarget)
+  // els.mapPanel.classList.toggle('hidden', !state.showMapView)
 
   if (state.userPosition) {
     const effectiveRadius = Math.min(
@@ -188,9 +188,9 @@ function updateUi() {
     )
     els.distance.textContent = tm('distanceLine', {
       meters,
-      // target: Math.round(effectiveRadius),
-      // base: LOCATION_RADIUS_METERS,
-      // accuracy: Math.round(state.userPosition.accuracy),
+      target: Math.round(effectiveRadius),
+      base: LOCATION_RADIUS_METERS,
+      accuracy: Math.round(state.userPosition.accuracy),
     })
   } else {
     els.distance.textContent = tm('distanceUnknown')
@@ -334,10 +334,10 @@ function confirmLetter() {
 
 els.enableLocation.addEventListener('click', startLocationTracking)
 els.confirmLetter.addEventListener('click', confirmLetter)
-els.toggleMapView.addEventListener('change', (e) => {
-  state.showMapView = e.target.checked
-  updateUi()
-})
+// els.toggleMapView.addEventListener('change', (e) => {
+//   state.showMapView = e.target.checked
+//   updateUi()
+// })
 els.languageSelect.addEventListener('change', (event) => {
   setLanguage(event.target.value)
   window.location.reload()
@@ -351,6 +351,10 @@ if ('serviceWorker' in navigator) {
 
 // Load shared route config (no sign-in needed)
 async function loadConfig() {
+  // Show defaults immediately so UI is never blank while waiting
+  state.configStatus = tm('configLoading')
+  updateUi()
+
   try {
     const config = await fetchSharedConfig()
     state.route = config.route
@@ -359,7 +363,9 @@ async function loadConfig() {
       ? tm('configLoaded')
       : tm('configDefault')
   } catch (error) {
+    // Timeout or network error — fall back to defaults, show warning
     state.configStatus = tm('configFailed', { message: error.message })
+    resetQuestProgress(tm('tapToBegin'))
   }
   updateUi()
 }

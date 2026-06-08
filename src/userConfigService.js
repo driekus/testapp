@@ -5,18 +5,30 @@ const SHARED_TABLE = 'shared_config'
 const SHARED_ROW_ID = 1
 const TABLE_NAME = 'user_configs'
 
+const FETCH_TIMEOUT_MS = 6000
+
+function withTimeout(promise, ms) {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(`Supabase request timed out after ${ms}ms`)), ms),
+  )
+  return Promise.race([promise, timeout])
+}
+
 /**
  * Fetch the shared route config — no sign-in required.
+ * Falls back to defaults on timeout or error.
  */
 export async function fetchSharedConfig() {
   const fallback = defaultConfig()
   if (!supabase) return fallback
 
-  const { data, error } = await supabase
+  const query = supabase
     .from(SHARED_TABLE)
     .select('route')
     .eq('id', SHARED_ROW_ID)
     .maybeSingle()
+
+  const { data, error } = await withTimeout(query, FETCH_TIMEOUT_MS)
 
   if (error) throw error
   if (!data) return fallback
