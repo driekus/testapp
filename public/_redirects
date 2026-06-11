@@ -1,0 +1,3 @@
+# Netlify SPA redirect — serve index.html for all game routes
+# Static files (admin.html, assets/) are served directly before this rule.
+/*    /index.html   200

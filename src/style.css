@@ -126,6 +126,63 @@ input[type='password'] {
   display: none;
 }
 
+/* Location image (shown instead of distance when a photo hint is set) */
+.location-image {
+  width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid #d9e2ef;
+  margin-top: 4px;
+}
+
+/* Route badge */
+.route-badge {
+  display: inline-block;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 99px;
+  margin-bottom: 4px;
+}
+
+/* Lobby — game list */
+.game-list {
+  display: grid;
+  gap: 10px;
+}
+
+.game-link {
+  display: block;
+  padding: 14px 16px;
+  background: #f0f5ff;
+  border: 1px solid #c3d4f7;
+  border-radius: 10px;
+  color: #1d4ed8;
+  font-weight: 600;
+  font-size: 1.05rem;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.game-link:hover {
+  background: #dce9ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .game-link {
+    background: #1e2d4a;
+    border-color: #3b5a9a;
+    color: #93c5fd;
+  }
+
+  .game-link:hover {
+    background: #263b5e;
+  }
+}
+
 button {
   border: 1px solid #2f7dff;
   background: #2f7dff;

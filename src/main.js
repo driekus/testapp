@@ -2,7 +2,7 @@ import './style.css'
 import { distanceMeters, isQuickJump } from './gameLogic.js'
 import { defaultConfig } from './config.js'
 import { hasSupabaseConfig } from './supabaseClient.js'
-import { fetchSharedConfig } from './userConfigService.js'
+import { fetchGameWithRoutes, listGames } from './userConfigService.js'
 import { getLanguage, setLanguage, t } from './i18n.js'
 
 const LOCATION_RADIUS_METERS = 5
@@ -12,153 +12,211 @@ const MAX_SPEED_METERS_PER_SECOND = 22
 const MAX_JUMP_DISTANCE_METERS = 250
 const HIGH_ACCURACY_TIMEOUT_MS = 20000
 const BALANCED_TIMEOUT_MS = 30000
+
 const language = getLanguage()
 const tm = (key, params) => t(language, 'main', key, params)
 
+// Read slug from URL path: "/amsterdam-tour" → "amsterdam-tour"
+const slug = window.location.pathname.replace(/^\/+/, '').split('/')[0] || ''
+
 const state = {
+  // game / route data
+  gameRoutes: [],           // [{id, order_index, display_name, route: [...]}]
+  currentRouteIndex: 0,
   route: defaultConfig().route,
+  displayName: '',
+  // quest progress
   currentLocationIndex: 0,
-  collectedLetters: [],
+  collectedLetters: [],     // accumulated across all routes
   pendingLetter: null,
   userPosition: null,
   lastTrustedPosition: null,
   lastLetterGrantedAt: 0,
   geoWatchId: null,
-  showMapView: false,
+  routeComplete: false,     // true while waiting for player to advance to next route
   statusMessage: tm('tapToBegin'),
   configStatus: tm('configLoading'),
 }
 
-function buildGoogleDirectionsUrl(target) {
-  return `https://www.google.com/maps/dir/?api=1&destination=${target.lat},${target.lng}&travelmode=walking`
-}
+// ─── Lobby ─────────────────────────────────────────────────────────────────
 
-function buildOpenStreetMapUrl(target) {
-  if (!state.userPosition) {
-    return `https://www.openstreetmap.org/?mlat=${target.lat}&mlon=${target.lng}#map=17/${target.lat}/${target.lng}`
-  }
-  const { latitude, longitude } = state.userPosition
-  return `https://www.openstreetmap.org/directions?engine=fossgis_osrm_foot&route=${latitude}%2C${longitude}%3B${target.lat}%2C${target.lng}`
-}
+function renderLobby(games) {
+  const app = document.querySelector('#app')
+  const listHtml = games.length
+    ? games.map((g) => `<a class="game-link" href="/${g.slug}">${g.display_name}</a>`).join('')
+    : `<p class="muted">${tm('noGamesAvailable')}</p>`
 
-function buildOpenStreetMapEmbedUrl(target) {
-  const delta = 0.008
-  const left = target.lng - delta
-  const right = target.lng + delta
-  const top = target.lat + delta
-  const bottom = target.lat - delta
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${target.lat}%2C${target.lng}`
-}
-
-function resetQuestProgress(nextStatus) {
-  state.currentLocationIndex = 0
-  state.collectedLetters = []
-  state.pendingLetter = null
-  state.lastLetterGrantedAt = 0
-  state.statusMessage = nextStatus
-}
-
-const app = document.querySelector('#app')
-
-app.innerHTML = `
-  <main class="container">
-    <div class="actions" style="justify-content:space-between; margin-bottom: 8px;">
-<!--      <a class="admin-link" href="/admin.html">⚙ ${tm('adminSettings')}</a>-->
-      <label for="language-select">${tm('languageLabel')}:
-        <select id="language-select">
-          <option value="en" ${language === 'en' ? 'selected' : ''}>EN</option>
-          <option value="nl" ${language === 'nl' ? 'selected' : ''}>NL</option>
-        </select>
-      </label>
-    </div>
-    <h1>${tm('title')}</h1>
-    <p class="hint">${tm('hint')}</p>
-    <p id="config-status" class="muted"></p>
-
-    <section class="card">
-      <h2>${tm('currentTarget')}</h2>
-      <p id="target-name"></p>
-      <p id="target-coords" class="muted" hidden></p>
-      <p id="distance" class="distance"></p>
-    </section>
-
-    <section class="card">
-      <h2>${tm('progress')}</h2>
-      <p id="progress"></p>
-      <p id="letters" class="letters"></p>
-    </section>
-
-    <section class="card">
-      <h2>${tm('status')}</h2>
-      <p id="status"></p>
-      <p id="pending-letter" class="pending"></p>
-      <div class="actions">
-        <button id="enable-location" type="button">${tm('enableLocation')}</button>
-        <button id="confirm-letter" type="button" disabled>${tm('confirmAndNext')}</button>
+  app.innerHTML = `
+    <main class="container">
+      <div class="actions" style="justify-content:flex-end; margin-bottom: 8px;">
+        <label for="language-select">${tm('languageLabel')}:
+          <select id="language-select">
+            <option value="en" ${language === 'en' ? 'selected' : ''}>EN</option>
+            <option value="nl" ${language === 'nl' ? 'selected' : ''}>NL</option>
+          </select>
+        </label>
       </div>
-    </section>
-
-<!--    <section class="card">-->
-<!--      <h2>${tm('optionalMapView')}</h2>-->
-<!--      <label class="toggle-row" for="toggle-map-view">-->
-<!--        <input id="toggle-map-view" type="checkbox" />-->
-<!--        ${tm('showMapTools')}-->
-<!--      </label>-->
-<!--      <div id="map-panel" class="map-panel hidden">-->
-<!--        <div class="actions">-->
-<!--          <a id="google-nav-link" class="link-button" target="_blank" rel="noopener noreferrer">${tm('openGoogleMaps')}</a>-->
-<!--          <a id="osm-nav-link" class="link-button" target="_blank" rel="noopener noreferrer">${tm('openOpenStreetMap')}</a>-->
-<!--        </div>-->
-<!--        <iframe id="osm-embed" class="map-embed" title="OpenStreetMap target preview" loading="lazy"></iframe>-->
-<!--      </div>-->
-<!--    </section>-->
-  </main>
-`
-
-const els = {
-  languageSelect: document.querySelector('#language-select'),
-  configStatus: document.querySelector('#config-status'),
-  targetName: document.querySelector('#target-name'),
-  targetCoords: document.querySelector('#target-coords'),
-  distance: document.querySelector('#distance'),
-  progress: document.querySelector('#progress'),
-  letters: document.querySelector('#letters'),
-  status: document.querySelector('#status'),
-  pendingLetter: document.querySelector('#pending-letter'),
-  enableLocation: document.querySelector('#enable-location'),
-  confirmLetter: document.querySelector('#confirm-letter'),
-  toggleMapView: document.querySelector('#toggle-map-view'),
-  mapPanel: document.querySelector('#map-panel'),
-  googleNavLink: document.querySelector('#google-nav-link'),
-  osmNavLink: document.querySelector('#osm-nav-link'),
-  osmEmbed: document.querySelector('#osm-embed'),
+      <h1>${tm('lobbyTitle')}</h1>
+      <p class="hint">${tm('lobbyHint')}</p>
+      <section class="card game-list">${listHtml}</section>
+    </main>
+  `
+  document.querySelector('#language-select').addEventListener('change', (e) => {
+    setLanguage(e.target.value)
+    window.location.reload()
+  })
 }
+
+async function showLobby() {
+  const app = document.querySelector('#app')
+  app.innerHTML = `<main class="container"><p class="muted">${tm('configLoading')}</p></main>`
+  try {
+    renderLobby(await listGames())
+  } catch {
+    renderLobby([])
+  }
+}
+
+// ─── Game UI ────────────────────────────────────────────────────────────────
+
+function buildGameUi() {
+  document.querySelector('#app').innerHTML = `
+    <main class="container">
+      <div class="actions" style="justify-content:space-between; margin-bottom: 8px;">
+        <a class="muted" href="/">← ${tm('allGames')}</a>
+        <label for="language-select">${tm('languageLabel')}:
+          <select id="language-select">
+            <option value="en" ${language === 'en' ? 'selected' : ''}>EN</option>
+            <option value="nl" ${language === 'nl' ? 'selected' : ''}>NL</option>
+          </select>
+        </label>
+      </div>
+      <h1 id="game-title">${tm('title')}</h1>
+      <p class="hint">${tm('hint')}</p>
+      <p id="config-status" class="muted"></p>
+
+      <section class="card">
+        <h2>${tm('currentTarget')}</h2>
+        <p id="route-badge" class="route-badge"></p>
+        <p id="target-name"></p>
+        <img id="location-image" class="location-image hidden" alt="" />
+        <p id="distance" class="distance"></p>
+      </section>
+
+      <section class="card">
+        <h2>${tm('progress')}</h2>
+        <p id="progress"></p>
+        <p id="letters" class="letters"></p>
+      </section>
+
+      <section class="card">
+        <h2>${tm('status')}</h2>
+        <p id="status"></p>
+        <p id="pending-letter" class="pending"></p>
+        <div class="actions">
+          <button id="enable-location" type="button">${tm('enableLocation')}</button>
+          <button id="confirm-letter" type="button" disabled>${tm('confirmAndNext')}</button>
+          <button id="next-route" type="button" class="hidden">${tm('startNextRoute')}</button>
+        </div>
+      </section>
+    </main>
+  `
+}
+
+function getEls() {
+  return {
+    languageSelect: document.querySelector('#language-select'),
+    gameTitle: document.querySelector('#game-title'),
+    configStatus: document.querySelector('#config-status'),
+    routeBadge: document.querySelector('#route-badge'),
+    targetName: document.querySelector('#target-name'),
+    locationImage: document.querySelector('#location-image'),
+    distance: document.querySelector('#distance'),
+    progress: document.querySelector('#progress'),
+    letters: document.querySelector('#letters'),
+    status: document.querySelector('#status'),
+    pendingLetter: document.querySelector('#pending-letter'),
+    enableLocation: document.querySelector('#enable-location'),
+    confirmLetter: document.querySelector('#confirm-letter'),
+    nextRoute: document.querySelector('#next-route'),
+  }
+}
+
+let els = {}
 
 function updateUi() {
+  const totalRoutes = state.gameRoutes.length
+  const currentRouteData = state.gameRoutes[state.currentRouteIndex]
   const currentTarget = state.route[state.currentLocationIndex]
-  const completedCount = state.collectedLetters.length
+  const completedInRoute = state.collectedLetters.length - (state.currentRouteIndex * 0)
 
+  if (els.gameTitle) els.gameTitle.textContent = state.displayName || tm('title')
   els.configStatus.textContent = state.configStatus
+
+  // Route badge: "Route 2 of 3"
+  if (totalRoutes > 1 && currentRouteData) {
+    els.routeBadge.textContent = tm('routeBadge', {
+      current: state.currentRouteIndex + 1,
+      total: totalRoutes,
+      name: currentRouteData.display_name,
+    })
+    els.routeBadge.classList.remove('hidden')
+  } else {
+    els.routeBadge.classList.add('hidden')
+  }
+
+  // All routes complete
+  if (state.currentRouteIndex >= totalRoutes && totalRoutes > 0) {
+    els.targetName.textContent = tm('allCompleted')
+    els.distance.textContent = ''
+    els.locationImage.classList.add('hidden')
+    els.progress.textContent = tm('greatJob')
+    els.pendingLetter.textContent = ''
+    els.confirmLetter.disabled = true
+    els.nextRoute.classList.add('hidden')
+    els.status.textContent = state.statusMessage
+    els.letters.textContent = `${tm('letters')}: ${state.collectedLetters.join(' ')}`
+    return
+  }
+
+  // Between routes — waiting for player to tap "start next route"
+  if (state.routeComplete) {
+    els.targetName.textContent = ''
+    els.distance.textContent = ''
+    els.confirmLetter.disabled = true
+    els.nextRoute.classList.remove('hidden')
+    els.nextRoute.textContent = currentRouteData
+      ? tm('startNextRouteNamed', { name: currentRouteData.display_name })
+      : tm('startNextRoute')
+    els.status.textContent = state.statusMessage
+    els.letters.textContent = `${tm('letters')}: ${state.collectedLetters.join(' ')}`
+    els.progress.textContent = tm('routeCompletedProgress', {
+      done: state.currentRouteIndex,
+      total: totalRoutes,
+    })
+    return
+  }
+
+  els.nextRoute.classList.add('hidden')
 
   if (!currentTarget) {
     els.targetName.textContent = tm('allCompleted')
-    els.targetCoords.textContent = ''
     els.distance.textContent = ''
     els.progress.textContent = tm('greatJob')
     els.pendingLetter.textContent = ''
     els.confirmLetter.disabled = true
     els.status.textContent = state.statusMessage
     els.letters.textContent = `${tm('letters')}: ${state.collectedLetters.join(' ')}`
-    els.mapPanel.classList.add('hidden')
     return
   }
 
   els.targetName.textContent = `${state.currentLocationIndex + 1}. ${currentTarget.name}`
-  els.targetCoords.textContent = tm('targetLine', {
-    lat: currentTarget.lat.toFixed(4),
-    lng: currentTarget.lng.toFixed(4),
+  els.progress.textContent = tm('completed', {
+    count: state.currentLocationIndex,
+    routeTotal: state.route.length,
+    route: state.currentRouteIndex + 1,
+    total: totalRoutes,
   })
-  els.progress.textContent = tm('completed', { count: completedCount })
   els.letters.textContent = state.collectedLetters.length
     ? `${tm('letters')}: ${state.collectedLetters.join(' ')}`
     : tm('lettersEmpty')
@@ -168,41 +226,47 @@ function updateUi() {
     : ''
   els.confirmLetter.disabled = !state.pendingLetter
 
-  // els.googleNavLink.href = buildGoogleDirectionsUrl(currentTarget)
-  // els.osmNavLink.href = buildOpenStreetMapUrl(currentTarget)
-  // els.osmEmbed.src = buildOpenStreetMapEmbedUrl(currentTarget)
-  // els.mapPanel.classList.toggle('hidden', !state.showMapView)
-
-  if (state.userPosition) {
-    const effectiveRadius = Math.min(
-      MAX_ALLOWED_GPS_ACCURACY_METERS,
-      Math.max(LOCATION_RADIUS_METERS, state.userPosition.accuracy),
-    )
-    const meters = Math.round(
-      distanceMeters(
-        state.userPosition.latitude,
-        state.userPosition.longitude,
-        currentTarget.lat,
-        currentTarget.lng,
-      ),
-    )
-    els.distance.textContent = tm('distanceLine', {
-      meters,
-      target: Math.round(effectiveRadius),
-      base: LOCATION_RADIUS_METERS,
-      accuracy: Math.round(state.userPosition.accuracy),
-    })
+  // Show location image OR distance — never both
+  if (currentTarget.image_url) {
+    els.locationImage.src = currentTarget.image_url
+    els.locationImage.classList.remove('hidden')
+    els.distance.textContent = ''
   } else {
-    els.distance.textContent = tm('distanceUnknown')
+    els.locationImage.classList.add('hidden')
+    els.locationImage.src = ''
+    if (state.userPosition) {
+      const effectiveRadius = Math.min(
+        MAX_ALLOWED_GPS_ACCURACY_METERS,
+        Math.max(LOCATION_RADIUS_METERS, state.userPosition.accuracy),
+      )
+      const meters = Math.round(
+        distanceMeters(
+          state.userPosition.latitude,
+          state.userPosition.longitude,
+          currentTarget.lat,
+          currentTarget.lng,
+        ),
+      )
+      els.distance.textContent = tm('distanceLine', {
+        meters,
+        target: Math.round(effectiveRadius),
+        base: LOCATION_RADIUS_METERS,
+        accuracy: Math.round(state.userPosition.accuracy),
+      })
+    } else {
+      els.distance.textContent = tm('distanceUnknown')
+    }
   }
 }
+
+// ─── Game logic ─────────────────────────────────────────────────────────────
 
 function remainingCooldownMs() {
   return Math.max(0, LETTER_COOLDOWN_MS - (Date.now() - state.lastLetterGrantedAt))
 }
 
 function checkArrival() {
-  if (state.pendingLetter || !state.userPosition) return
+  if (state.pendingLetter || !state.userPosition || state.routeComplete) return
 
   const currentTarget = state.route[state.currentLocationIndex]
   if (!currentTarget) return
@@ -211,7 +275,6 @@ function checkArrival() {
     MAX_ALLOWED_GPS_ACCURACY_METERS,
     Math.max(LOCATION_RADIUS_METERS, state.userPosition.accuracy),
   )
-
   const meters = distanceMeters(
     state.userPosition.latitude,
     state.userPosition.longitude,
@@ -235,7 +298,6 @@ function checkArrival() {
   } else {
     state.statusMessage = tm('moveCloser', { name: currentTarget.name })
   }
-
   updateUi()
 }
 
@@ -286,7 +348,6 @@ function startWatch(options, fallbackToBalanced) {
         startWatch({ enableHighAccuracy: false, maximumAge: 15000, timeout: BALANCED_TIMEOUT_MS }, false)
         return
       }
-
       state.statusMessage = tm('locationError', { message: error.message })
       updateUi()
     },
@@ -300,20 +361,14 @@ function startLocationTracking() {
     updateUi()
     return
   }
-
   if (state.geoWatchId !== null) {
     state.statusMessage = tm('trackingActive')
     updateUi()
     return
   }
-
   state.statusMessage = tm('requestingPermission')
   updateUi()
-
-  startWatch(
-    { enableHighAccuracy: true, maximumAge: 5000, timeout: HIGH_ACCURACY_TIMEOUT_MS },
-    true,
-  )
+  startWatch({ enableHighAccuracy: true, maximumAge: 5000, timeout: HIGH_ACCURACY_TIMEOUT_MS }, true)
 }
 
 function confirmLetter() {
@@ -324,24 +379,65 @@ function confirmLetter() {
   state.currentLocationIndex += 1
 
   if (state.currentLocationIndex >= state.route.length) {
-    state.statusMessage = tm('questComplete')
+    // Finished all locations in the current route
+    const moreRoutes = state.currentRouteIndex + 1 < state.gameRoutes.length
+    if (moreRoutes) {
+      state.routeComplete = true
+      const nextRoute = state.gameRoutes[state.currentRouteIndex + 1]
+      state.statusMessage = tm('routeComplete', { name: nextRoute.display_name })
+    } else {
+      state.statusMessage = tm('questComplete')
+    }
   } else {
     state.statusMessage = tm('nextTarget', { name: state.route[state.currentLocationIndex].name })
   }
-
   updateUi()
 }
 
-els.enableLocation.addEventListener('click', startLocationTracking)
-els.confirmLetter.addEventListener('click', confirmLetter)
-// els.toggleMapView.addEventListener('change', (e) => {
-//   state.showMapView = e.target.checked
-//   updateUi()
-// })
-els.languageSelect.addEventListener('change', (event) => {
-  setLanguage(event.target.value)
-  window.location.reload()
-})
+function startNextRoute() {
+  state.currentRouteIndex += 1
+  const nextRoute = state.gameRoutes[state.currentRouteIndex]
+  state.route = nextRoute.route
+  state.currentLocationIndex = 0
+  state.pendingLetter = null
+  state.lastLetterGrantedAt = 0
+  state.routeComplete = false
+  state.statusMessage = tm('nextRouteStarted', { name: nextRoute.display_name })
+  updateUi()
+}
+
+// ─── Config loading ─────────────────────────────────────────────────────────
+
+async function loadGame() {
+  state.configStatus = tm('configLoading')
+  updateUi()
+
+  try {
+    const game = await fetchGameWithRoutes(slug)
+    if (!game || game.routes.length === 0) {
+      state.configStatus = tm('gameNotFound', { slug })
+      state.statusMessage = tm('tapToBegin')
+    } else {
+      state.gameRoutes = game.routes
+      state.displayName = game.display_name
+      state.route = game.routes[0].route
+      state.currentRouteIndex = 0
+      state.currentLocationIndex = 0
+      state.collectedLetters = []
+      state.pendingLetter = null
+      state.lastLetterGrantedAt = 0
+      state.routeComplete = false
+      state.statusMessage = tm('tapToBegin')
+      state.configStatus = hasSupabaseConfig ? tm('configLoaded') : tm('configDefault')
+    }
+  } catch (error) {
+    state.configStatus = tm('configFailed', { message: error.message })
+    state.statusMessage = tm('tapToBegin')
+  }
+  updateUi()
+}
+
+// ─── Boot ───────────────────────────────────────────────────────────────────
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
@@ -349,26 +445,20 @@ if ('serviceWorker' in navigator) {
   })
 }
 
-// Load shared route config (no sign-in needed)
-async function loadConfig() {
-  // Show defaults immediately so UI is never blank while waiting
-  state.configStatus = tm('configLoading')
-  updateUi()
+if (!slug) {
+  showLobby()
+} else {
+  buildGameUi()
+  els = getEls()
 
-  try {
-    const config = await fetchSharedConfig()
-    state.route = config.route
-    resetQuestProgress(tm('tapToBegin'))
-    state.configStatus = hasSupabaseConfig
-      ? tm('configLoaded')
-      : tm('configDefault')
-  } catch (error) {
-    // Timeout or network error — fall back to defaults, show warning
-    state.configStatus = tm('configFailed', { message: error.message })
-    resetQuestProgress(tm('tapToBegin'))
-  }
+  els.enableLocation.addEventListener('click', startLocationTracking)
+  els.confirmLetter.addEventListener('click', confirmLetter)
+  els.nextRoute.addEventListener('click', startNextRoute)
+  els.languageSelect.addEventListener('change', (e) => {
+    setLanguage(e.target.value)
+    window.location.reload()
+  })
+
   updateUi()
+  loadGame()
 }
-
-loadConfig()
-updateUi()
