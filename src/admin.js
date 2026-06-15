@@ -310,6 +310,15 @@ function rowTemplate(point, index) {
         <label>${ta('longitude')}
           <input type="number" step="any" data-field="lng" data-row-index="${index}" value="${point.lng}" />
         </label>
+        <label>${ta('question')}
+          <input type="text" data-field="question" data-row-index="${index}" value="${point.question ?? ''}" placeholder="${ta('questionPlaceholder')}" />
+        </label>
+        <label>${ta('answer')}
+          <input type="text" data-field="answer" data-row-index="${index}" value="${point.answer ?? ''}" placeholder="${ta('answerPlaceholder')}" />
+        </label>
+        <label>${ta('maxAttempts')}
+          <input type="number" min="0" step="1" data-field="max_attempts" data-row-index="${index}" value="${point.max_attempts ?? 0}" />
+        </label>
         <input type="hidden" data-field="image_url" data-row-index="${index}" value="${point.image_url ?? ''}" />
         <button type="button" data-pick-row="${index}" class="pick-button">${ta('pickFromMap')}</button>
       </div>
@@ -334,6 +343,9 @@ function getRowInputs(index) {
     lat: document.querySelector(`input[data-field="lat"][data-row-index="${index}"]`),
     lng: document.querySelector(`input[data-field="lng"][data-row-index="${index}"]`),
     image_url: document.querySelector(`input[data-field="image_url"][data-row-index="${index}"]`),
+    question: document.querySelector(`input[data-field="question"][data-row-index="${index}"]`),
+    answer: document.querySelector(`input[data-field="answer"][data-row-index="${index}"]`),
+    max_attempts: document.querySelector(`input[data-field="max_attempts"][data-row-index="${index}"]`),
   }
 }
 
@@ -361,7 +373,13 @@ function collectRouteFromInputs() {
     const lat = Number(ri.lat.value)
     const lng = Number(ri.lng.value)
     validateCoordinate(lat, lng, index)
-    return { name, lat, lng, letter, image_url: ri.image_url?.value ?? '' }
+    return {
+      name, lat, lng, letter,
+      image_url: ri.image_url?.value ?? '',
+      question: ri.question?.value.trim() ?? '',
+      answer: ri.answer?.value.trim() ?? '',
+      max_attempts: Math.max(0, Math.floor(Number(ri.max_attempts?.value) || 0)),
+    }
   })
 }
 

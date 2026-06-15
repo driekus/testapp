@@ -1,5 +1,5 @@
-import { defaultConfig, sanitizeRoute } from './config.js'
-import { supabase } from './supabaseClient.js'
+import { sanitizeRoute } from './config.js'
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient.js'
 
 const FETCH_TIMEOUT_MS = 6000
 
@@ -51,6 +51,54 @@ export async function fetchGameWithRoutes(slug) {
     .map((r) => ({ ...r, route: sanitizeRoute(r.route) }))
 
   return { id: data.id, slug: data.slug, display_name: data.display_name, routes }
+}
+
+/**
+ * Fetch a game for the play client via Edge Function — only safe fields are returned.
+ * Each route contains only its first location (name, lat, lng, question, max_attempts).
+ * Subsequent locations are revealed by Edge Functions as the player progresses.
+ * The full route (answers, letters, future locations) never reaches the browser.
+ * @param {string} slug
+ * @returns {Promise<{id: string, slug: string, display_name: string, routes: Array} | null>}
+ */
+export async function fetchGameForPlay(slug) {
+  const res = await withTimeout(
+    fetch(`${SUPABASE_URL}/functions/v1/get-game`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ slug }),
+    }),
+    FETCH_TIMEOUT_MS,
+  )
+  const json = await res.json()
+  if (!res.ok) throw new Error(json.error ?? res.statusText)
+  return json.game ?? null
+}
+
+/**
+ * Fetch the first (safe) location of a route via Edge Function.
+ * Called when the player starts the next route.
+ * @param {string} routeId
+ * @returns {Promise<{name, lat, lng, question, max_attempts}>}
+ */
+export async function fetchRouteStart(routeId) {
+  const res = await withTimeout(
+    fetch(`${SUPABASE_URL}/functions/v1/get-route-start`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ route_id: routeId }),
+    }),
+    FETCH_TIMEOUT_MS,
+  )
+  const json = await res.json()
+  if (!res.ok) throw new Error(json.error ?? res.statusText)
+  return json.location
 }
 
 /**

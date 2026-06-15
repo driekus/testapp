@@ -1,8 +1,8 @@
 import './style.css'
 import { distanceMeters, isQuickJump } from './gameLogic.js'
 import { defaultConfig } from './config.js'
-import { hasSupabaseConfig } from './supabaseClient.js'
-import { fetchGameWithRoutes, listGames } from './userConfigService.js'
+import { hasSupabaseConfig, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient.js'
+import { fetchGameForPlay, fetchRouteStart, listGames } from './userConfigService.js'
 import { getLanguage, setLanguage, t } from './i18n.js'
 
 const LOCATION_RADIUS_METERS = 5
@@ -23,12 +23,18 @@ const state = {
   // game / route data
   gameRoutes: [],           // [{id, order_index, display_name, route: [...]}]
   currentRouteIndex: 0,
+  currentRouteId: null,     // DB id of the active route row — used for Edge Function calls
   route: defaultConfig().route,
   displayName: '',
   // quest progress
   currentLocationIndex: 0,
   collectedLetters: [],     // accumulated across all routes
   pendingLetter: null,
+  pendingQuestion: false,   // true while waiting for correct answer
+  answerWrong: false,       // true after a wrong answer attempt
+  answerAttempts: 0,        // wrong attempts for the current question
+  serverError: false,       // true when an Edge Function call fails
+  checking: false,          // true while an Edge Function call is in flight
   userPosition: null,
   lastTrustedPosition: null,
   lastLetterGrantedAt: 0,
@@ -95,7 +101,7 @@ function buildGameUi() {
       <p class="hint">${tm('hint')}</p>
       <p id="config-status" class="muted"></p>
 
-      <section class="card">
+      <section id="card-target" class="card">
         <h2>${tm('currentTarget')}</h2>
         <p id="route-badge" class="route-badge"></p>
         <p id="target-name"></p>
@@ -103,18 +109,35 @@ function buildGameUi() {
         <p id="distance" class="distance"></p>
       </section>
 
-      <section class="card">
+      <section id="card-progress" class="card">
         <h2>${tm('progress')}</h2>
         <p id="progress"></p>
         <p id="letters" class="letters"></p>
       </section>
 
-      <section class="card">
+      <section id="card-location" class="card">
+        <h2>${tm('locationTitle')}</h2>
+        <p>${tm('locationRequired')}</p>
+        <div class="actions">
+          <button id="enable-location" type="button">${tm('enableLocation')}</button>
+        </div>
+      </section>
+
+      <section id="card-question" class="card hidden">
+        <h2>${tm('questionTitle')}</h2>
+        <p id="question-text"></p>
+        <input id="answer-input" type="text" autocomplete="off" placeholder="${tm('answerPlaceholder')}" />
+        <p id="answer-feedback" class="answer-feedback hidden"></p>
+        <div class="actions">
+          <button id="submit-answer" type="button">${tm('submitAnswer')}</button>
+        </div>
+      </section>
+
+      <section id="card-status" class="card">
         <h2>${tm('status')}</h2>
         <p id="status"></p>
         <p id="pending-letter" class="pending"></p>
         <div class="actions">
-          <button id="enable-location" type="button">${tm('enableLocation')}</button>
           <button id="confirm-letter" type="button" disabled>${tm('confirmAndNext')}</button>
           <button id="next-route" type="button" class="hidden">${tm('startNextRoute')}</button>
         </div>
@@ -128,6 +151,15 @@ function getEls() {
     languageSelect: document.querySelector('#language-select'),
     gameTitle: document.querySelector('#game-title'),
     configStatus: document.querySelector('#config-status'),
+    cardTarget: document.querySelector('#card-target'),
+    cardProgress: document.querySelector('#card-progress'),
+    cardLocation: document.querySelector('#card-location'),
+    cardStatus: document.querySelector('#card-status'),
+    cardQuestion: document.querySelector('#card-question'),
+    questionText: document.querySelector('#question-text'),
+    answerInput: document.querySelector('#answer-input'),
+    answerFeedback: document.querySelector('#answer-feedback'),
+    submitAnswer: document.querySelector('#submit-answer'),
     routeBadge: document.querySelector('#route-badge'),
     targetName: document.querySelector('#target-name'),
     locationImage: document.querySelector('#location-image'),
@@ -149,6 +181,40 @@ function updateUi() {
   const currentRouteData = state.gameRoutes[state.currentRouteIndex]
   const currentTarget = state.route[state.currentLocationIndex]
   const completedInRoute = state.collectedLetters.length - (state.currentRouteIndex * 0)
+
+  // When location is not yet enabled, show only the location card
+  const locationActive = state.geoWatchId !== null
+  els.cardLocation.classList.toggle('hidden', locationActive)
+  els.cardTarget.classList.toggle('hidden', !locationActive)
+  els.cardProgress.classList.toggle('hidden', !locationActive)
+  els.cardStatus.classList.toggle('hidden', !locationActive)
+
+  if (!locationActive) return
+
+  // While a question must be answered, show only the question card
+  if (state.pendingQuestion) {
+    const currentTarget = state.route[state.currentLocationIndex]
+    els.cardQuestion.classList.remove('hidden')
+    els.cardTarget.classList.add('hidden')
+    els.cardProgress.classList.add('hidden')
+    els.cardStatus.classList.add('hidden')
+    els.questionText.textContent = currentTarget?.question ?? ''
+    els.answerFeedback.classList.toggle('hidden', !state.answerWrong)
+    if (state.answerWrong) {
+      const limit = currentTarget?.max_attempts || 0
+      els.answerFeedback.textContent = limit > 0
+        ? tm('answerWrongWithLimit', { attempts: state.answerAttempts, max: limit })
+        : tm('answerWrong')
+    }
+    return
+  }
+
+  els.cardQuestion.classList.add('hidden')
+
+  // Show only the status card when a letter is pending confirmation
+  const focusStatus = !!state.pendingLetter && !state.routeComplete
+  els.cardTarget.classList.toggle('hidden', focusStatus)
+  els.cardProgress.classList.toggle('hidden', focusStatus)
 
   if (els.gameTitle) els.gameTitle.textContent = state.displayName || tm('title')
   els.configStatus.textContent = state.configStatus
@@ -266,7 +332,7 @@ function remainingCooldownMs() {
 }
 
 function checkArrival() {
-  if (state.pendingLetter || !state.userPosition || state.routeComplete) return
+  if (state.pendingLetter || state.pendingQuestion || state.checking || !state.userPosition || state.routeComplete) return
 
   const currentTarget = state.route[state.currentLocationIndex]
   if (!currentTarget) return
@@ -292,9 +358,15 @@ function checkArrival() {
       updateUi()
       return
     }
-    state.pendingLetter = currentTarget.letter
     state.lastLetterGrantedAt = Date.now()
     state.statusMessage = tm('reached', { name: currentTarget.name })
+    if (currentTarget.question) {
+      state.pendingQuestion = true
+      state.answerWrong = false
+      state.answerAttempts = 0
+    } else {
+      confirmArrival()
+    }
   } else {
     state.statusMessage = tm('moveCloser', { name: currentTarget.name })
   }
@@ -371,6 +443,95 @@ function startLocationTracking() {
   startWatch({ enableHighAccuracy: true, maximumAge: 5000, timeout: HIGH_ACCURACY_TIMEOUT_MS }, true)
 }
 
+async function edgeFunctionUrl(name) {
+  return `${SUPABASE_URL}/functions/v1/${name}`
+}
+
+async function confirmArrival() {
+  state.checking = true
+  state.statusMessage = tm('checking')
+  state.serverError = false
+  updateUi()
+
+  try {
+    const res = await fetch(await edgeFunctionUrl('confirm-arrival'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({
+        route_id: state.currentRouteId,
+        location_index: state.currentLocationIndex,
+      }),
+    })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error ?? res.statusText)
+
+    state.pendingLetter = json.letter
+    if (json.next_location) state.route.push(json.next_location)
+    state.statusMessage = tm('reached', { name: state.route[state.currentLocationIndex].name })
+  } catch {
+    state.serverError = true
+    state.statusMessage = tm('serverError')
+    state.lastLetterGrantedAt = 0  // allow retry on next GPS tick
+  } finally {
+    state.checking = false
+  }
+  updateUi()
+}
+
+async function submitAnswer() {
+  const currentTarget = state.route[state.currentLocationIndex]
+  if (!state.pendingQuestion || !currentTarget || state.checking) return
+
+  const given = els.answerInput.value.trim()
+  els.answerInput.value = ''
+  state.answerWrong = false
+  state.serverError = false
+  state.checking = true
+  state.statusMessage = tm('checking')
+  updateUi()
+
+  try {
+    const res = await fetch(await edgeFunctionUrl('check-answer'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({
+        route_id: state.currentRouteId,
+        location_index: state.currentLocationIndex,
+        answer: given,
+      }),
+    })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error ?? res.statusText)
+
+    if (json.correct) {
+      state.pendingQuestion = false
+      state.answerAttempts = 0
+      state.pendingLetter = json.letter
+      if (json.next_location) state.route.push(json.next_location)
+    } else {
+      state.answerAttempts += 1
+      const limit = currentTarget.max_attempts || 0
+      if (limit > 0 && state.answerAttempts >= limit) {
+        state.pendingQuestion = false
+        state.answerWrong = false
+        state.answerAttempts = 0
+        state.pendingLetter = null
+        state.currentLocationIndex = 0
+        state.lastLetterGrantedAt = 0
+        state.statusMessage = tm('tooManyWrongAnswers')
+      } else {
+        state.answerWrong = true
+      }
+    }
+  } catch {
+    state.serverError = true
+    state.statusMessage = tm('serverError')
+  } finally {
+    state.checking = false
+  }
+  updateUi()
+}
+
 function confirmLetter() {
   if (!state.pendingLetter) return
 
@@ -394,15 +555,28 @@ function confirmLetter() {
   updateUi()
 }
 
-function startNextRoute() {
+async function startNextRoute() {
   state.currentRouteIndex += 1
   const nextRoute = state.gameRoutes[state.currentRouteIndex]
-  state.route = nextRoute.route
+  state.currentRouteId = nextRoute.id
   state.currentLocationIndex = 0
   state.pendingLetter = null
   state.lastLetterGrantedAt = 0
   state.routeComplete = false
-  state.statusMessage = tm('nextRouteStarted', { name: nextRoute.display_name })
+  state.checking = true
+  state.statusMessage = tm('checking')
+  updateUi()
+
+  try {
+    const firstLocation = await fetchRouteStart(nextRoute.id)
+    state.route = [firstLocation]
+    state.statusMessage = tm('nextRouteStarted', { name: nextRoute.display_name })
+  } catch {
+    state.serverError = true
+    state.statusMessage = tm('serverError')
+  } finally {
+    state.checking = false
+  }
   updateUi()
 }
 
@@ -413,15 +587,16 @@ async function loadGame() {
   updateUi()
 
   try {
-    const game = await fetchGameWithRoutes(slug)
+    const game = await fetchGameForPlay(slug)
     if (!game || game.routes.length === 0) {
       state.configStatus = tm('gameNotFound', { slug })
       state.statusMessage = tm('tapToBegin')
     } else {
       state.gameRoutes = game.routes
       state.displayName = game.display_name
-      state.route = game.routes[0].route
+      state.route = game.start_location ? [game.start_location] : []
       state.currentRouteIndex = 0
+      state.currentRouteId = game.routes[0].id
       state.currentLocationIndex = 0
       state.collectedLetters = []
       state.pendingLetter = null
@@ -454,6 +629,8 @@ if (!slug) {
   els.enableLocation.addEventListener('click', startLocationTracking)
   els.confirmLetter.addEventListener('click', confirmLetter)
   els.nextRoute.addEventListener('click', startNextRoute)
+  els.submitAnswer.addEventListener('click', submitAnswer)
+  els.answerInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAnswer() })
   els.languageSelect.addEventListener('change', (e) => {
     setLanguage(e.target.value)
     window.location.reload()

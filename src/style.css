@@ -126,6 +126,19 @@ input[type='password'] {
   display: none;
 }
 
+#answer-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #bcccdc;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.answer-feedback {
+  color: #dc2626;
+  font-weight: 600;
+}
+
 /* Location image (shown instead of distance when a photo hint is set) */
 .location-image {
   width: 100%;

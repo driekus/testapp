@@ -33,6 +33,11 @@ function sanitizePoint(point, index) {
     lng: Number.isFinite(lng) ? lng : fallback.lng,
     letter: sanitizeLetter(point?.letter, index),
     image_url: typeof point?.image_url === 'string' ? point.image_url : '',
+    question: typeof point?.question === 'string' ? point.question.trim() : '',
+    answer: typeof point?.answer === 'string' ? point.answer.trim() : '',
+    max_attempts: Number.isFinite(Number(point?.max_attempts)) && Number(point?.max_attempts) > 0
+      ? Math.floor(Number(point.max_attempts))
+      : 0,
   }
 }
 

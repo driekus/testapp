@@ -11,7 +11,7 @@ A JavaScript app where users visit 5 locations in order.
 ## Requirements
 
 - Node.js 18+
-- Supabase project
+- Supabase project + Supabase CLI (`npm install -g supabase`)
 - Browser/device with Geolocation API
 
 ## Supabase setup
@@ -20,12 +20,44 @@ A JavaScript app where users visit 5 locations in order.
 2. Open Supabase SQL Editor and run `supabase/schema.sql`.
 3. Enable Email/Password auth in Supabase (for admin login).
 4. (Optional) Enable GitHub auth provider if you want **Sign in with GitHub** on admin.
-5. Copy `.env.example` to `.env` and set:
+5. Copy `.env.example` to `.env.local` and fill in your values (find them in Supabase → Settings → API):
 
 ```powershell
-VITE_SUPABASE_URL=...
-VITE_SUPABASE_ANON_KEY=...
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
+
+## Edge Functions
+
+The game uses two Supabase Edge Functions to keep answers, letters, and future locations off the client:
+
+- `confirm-arrival` — called when a player reaches a location (no question). Returns the letter and the next location.
+- `check-answer` — called when a player submits an answer. Validates server-side and returns the letter and next location only if correct.
+
+### Deploy Edge Functions
+
+1. Log in to the Supabase CLI and link your project:
+
+```powershell
+supabase login
+supabase link --project-ref your-project-ref
+```
+
+> Find your project ref in Supabase → Settings → General.
+
+2. Set the service role key as a secret (find it in Supabase → Settings → API → `service_role`):
+
+```powershell
+supabase secrets set SERVICE_ROLE_KEY=your-service-role-key
+```
+
+3. Deploy both functions:
+
+```powershell
+supabase functions deploy confirm-arrival
+supabase functions deploy check-answer
+```
+
 
 ## Install and run
 
@@ -76,6 +108,8 @@ git push -u origin main
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
 4. Deploy.
+
+> Edge Functions are deployed separately via the Supabase CLI (see above) and are independent of Vercel.
 
 After deploy, open your HTTPS URL on phone and add to home screen.
 
