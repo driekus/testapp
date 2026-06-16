@@ -13,17 +13,26 @@ function withTimeout(promise, ms) {
 // ─── Games ────────────────────────────────────────────────────────────────────
 
 /**
- * @returns {Promise<Array<{slug: string, display_name: string}>>}
+ * @returns {Promise<Array<{slug: string, display_name: string, requires_payment: boolean, price_in_cents: number}>>}
  */
 export async function listGames() {
-  if (!supabase) return []
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return []
 
-  const { data, error } = await withTimeout(
-    supabase.from('games').select('slug, display_name').order('display_name'),
+  const res = await withTimeout(
+    fetch(
+      `${SUPABASE_URL}/rest/v1/games?select=slug,display_name,requires_payment,price_in_cents&order=display_name.asc`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          'Cache-Control': 'no-cache',
+        },
+      },
+    ),
     FETCH_TIMEOUT_MS,
   )
-  if (error) throw error
-  return data ?? []
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
 }
 
 /**
@@ -38,7 +47,7 @@ export async function fetchGameWithRoutes(slug) {
   const { data, error } = await withTimeout(
     supabase
       .from('games')
-      .select('id, slug, display_name, routes(id, order_index, display_name, route)')
+      .select('id, slug, display_name, logo_url, requires_payment, price_in_cents, routes(id, order_index, display_name, route)')
       .eq('slug', slug)
       .maybeSingle(),
     FETCH_TIMEOUT_MS,
@@ -50,7 +59,15 @@ export async function fetchGameWithRoutes(slug) {
     .sort((a, b) => a.order_index - b.order_index)
     .map((r) => ({ ...r, route: sanitizeRoute(r.route) }))
 
-  return { id: data.id, slug: data.slug, display_name: data.display_name, routes }
+  return {
+    id: data.id,
+    slug: data.slug,
+    display_name: data.display_name,
+    logo_url: data.logo_url ?? '',
+    requires_payment: data.requires_payment ?? false,
+    price_in_cents: data.price_in_cents ?? 0,
+    routes,
+  }
 }
 
 /**
@@ -82,9 +99,10 @@ export async function fetchGameForPlay(slug) {
  * Fetch the first (safe) location of a route via Edge Function.
  * Called when the player starts the next route.
  * @param {string} routeId
+ * @param {string | null} paymentToken
  * @returns {Promise<{name, lat, lng, question, max_attempts}>}
  */
-export async function fetchRouteStart(routeId) {
+export async function fetchRouteStart(routeId, paymentToken = null) {
   const res = await withTimeout(
     fetch(`${SUPABASE_URL}/functions/v1/get-route-start`, {
       method: 'POST',
@@ -92,7 +110,7 @@ export async function fetchRouteStart(routeId) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
       },
-      body: JSON.stringify({ route_id: routeId }),
+      body: JSON.stringify({ route_id: routeId, payment_token: paymentToken }),
     }),
     FETCH_TIMEOUT_MS,
   )
@@ -102,18 +120,26 @@ export async function fetchRouteStart(routeId) {
 }
 
 /**
- * Create or update a game's metadata (slug + display_name only).
+ * Create or update a game's metadata.
  * @param {string} slug
  * @param {string} displayName
+ * @param {boolean} [requiresPayment=false]
+ * @param {number} [priceInCents=0]
  * @returns {Promise<string>} the game's uuid
  */
-export async function saveGame(slug, displayName) {
+export async function saveGame(slug, displayName, requiresPayment = false, priceInCents = 0) {
   if (!supabase) throw new Error('Supabase is not configured.')
 
   const { data, error } = await supabase
     .from('games')
     .upsert(
-      { slug, display_name: displayName, updated_at: new Date().toISOString() },
+      {
+        slug,
+        display_name: displayName,
+        requires_payment: Boolean(requiresPayment),
+        price_in_cents: Math.max(0, Math.round(Number(priceInCents) || 0)),
+        updated_at: new Date().toISOString(),
+      },
       { onConflict: 'slug' },
     )
     .select('id')
@@ -121,6 +147,22 @@ export async function saveGame(slug, displayName) {
 
   if (error) throw error
   return data.id
+}
+
+/**
+ * Save only the logo_url for a game.
+ * @param {string} slug
+ * @param {string} logoUrl
+ */
+export async function saveGameLogo(slug, logoUrl) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+
+  const { error } = await supabase
+    .from('games')
+    .update({ logo_url: logoUrl, updated_at: new Date().toISOString() })
+    .eq('slug', slug)
+
+  if (error) throw error
 }
 
 /**
@@ -211,6 +253,32 @@ const IMAGE_BUCKET = 'location-images'
  * @param {number} locationIndex
  * @returns {Promise<string>} public URL
  */
+/**
+ * Upload a game logo and return its public URL.
+ * Path: logos/<gameSlug>/logo-<timestamp>.<ext>
+ * @param {File} file
+ * @param {string} gameSlug
+ * @returns {Promise<string>} public URL
+ */
+export async function uploadGameLogo(file, gameSlug) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+
+  const ext = file.name.split('.').pop().toLowerCase() || 'jpg'
+  const path = `logos/${gameSlug}/logo-${Date.now()}.${ext}`
+
+  const { data, error } = await supabase.storage
+    .from(IMAGE_BUCKET)
+    .upload(path, file, { upsert: true, contentType: file.type })
+
+  if (error) throw error
+
+  const { data: { publicUrl } } = supabase.storage
+    .from(IMAGE_BUCKET)
+    .getPublicUrl(data.path)
+
+  return publicUrl
+}
+
 export async function uploadLocationImage(file, gameSlug, routeId, locationIndex) {
   if (!supabase) throw new Error('Supabase is not configured.')
 

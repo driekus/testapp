@@ -7,7 +7,132 @@
     <title>Letter Quest Admin</title>
   </head>
   <body>
-    <div id="admin-app"></div>
+    <div id="admin-app">
+      <main class="admin-container">
+        <div class="top-row">
+          <h1 data-i18n="pageTitle"></h1>
+          <div>
+            <label for="language-select">
+              <span data-i18n="languageLabel"></span>:
+              <select id="language-select">
+                <option value="en">EN</option>
+                <option value="nl">NL</option>
+              </select>
+            </label>
+            <a class="link" id="back-to-game" href="/" data-i18n="backToGame"></a>
+          </div>
+        </div>
+
+        <!-- Auth -->
+        <section class="card">
+          <h2 data-i18n="account"></h2>
+          <p id="auth-user" class="small"></p>
+          <p id="auth-status" class="small"></p>
+          <div class="auth-grid">
+            <input id="auth-email" type="email" data-i18n-placeholder="emailPlaceholder" />
+            <input id="auth-password" type="password" data-i18n-placeholder="passwordPlaceholder" />
+          </div>
+          <div class="actions-row">
+            <button id="sign-in" data-i18n="signIn"></button>
+            <button id="sign-up" data-i18n="signUp"></button>
+            <button id="sign-in-github" data-i18n="signInGitHub"></button>
+            <button id="sign-out" data-i18n="signOut"></button>
+          </div>
+        </section>
+
+        <!-- Game picker -->
+        <section class="card">
+          <h2 data-i18n="gamesHeader"></h2>
+          <div class="game-select-row">
+            <select id="game-select">
+              <option value="" data-i18n="selectGameOption"></option>
+            </select>
+            <button id="new-game-btn" disabled data-i18n="newGame"></button>
+            <button id="delete-game-btn" class="ghost danger" disabled data-i18n="deleteGame"></button>
+          </div>
+          <div id="new-game-form" class="new-game-form hidden">
+            <label>
+              <span data-i18n="gameSlug"></span>
+              <input id="new-game-slug" type="text" placeholder="my-game" />
+              <span class="field-hint" data-i18n="gameSlugHint"></span>
+            </label>
+            <label>
+              <span data-i18n="gameDisplayName"></span>
+              <input id="new-game-display-name" type="text" placeholder="My Game" />
+            </label>
+            <div class="actions-row">
+              <button id="create-game-btn" data-i18n="createGame"></button>
+              <button id="cancel-new-game-btn" class="ghost" data-i18n="cancel"></button>
+            </div>
+          </div>
+          <p id="game-status" class="small"></p>
+        </section>
+
+        <!-- Editor (hidden until a game is selected) -->
+        <section id="editor-section" class="hidden">
+          <!-- Game display name + logo -->
+          <section class="card">
+            <h2 data-i18n="gameDisplayNameLabel"></h2>
+            <div class="actions-row">
+              <input id="edit-display-name" type="text" style="flex:1" />
+              <button id="save-display-name" data-i18n="saveName"></button>
+            </div>
+            <label class="payment-toggle">
+              <input type="checkbox" id="requires-payment" />
+              <span data-i18n="requiresPayment"></span>
+            </label>
+            <div id="price-wrap" class="hidden payment-price-row">
+              <input id="price-euros" type="number" min="0" step="0.01" placeholder="0.00" />
+              <span data-i18n="euros"></span>
+            </div>
+            <div id="logo-preview-wrap" class="image-preview-wrap hidden">
+              <img id="logo-preview-img" class="location-image-preview" alt="" />
+              <button type="button" id="remove-logo-btn" class="ghost danger" data-i18n="removeLogo"></button>
+            </div>
+            <div id="logo-upload-wrap">
+              <label class="upload-label" id="logo-upload-label">
+                <span class="upload-btn-face" data-i18n="uploadLogo"></span>
+                <input type="file" accept="image/*" id="logo-file-input" style="display:none" />
+              </label>
+              <p id="logo-upload-status" class="upload-status small"></p>
+            </div>
+          </section>
+
+          <!-- Route tabs -->
+          <section class="card">
+            <div class="route-tab-bar" id="route-tab-bar"></div>
+            <div class="route-meta-row">
+              <label style="flex:1">
+                <span data-i18n="routeDisplayName"></span>
+                <input id="route-display-name-input" type="text" />
+              </label>
+              <label>
+                <span data-i18n="locationCount"></span>
+                <input id="route-location-count" type="number" min="1" style="width:72px" />
+              </label>
+              <button id="delete-route-btn" class="ghost danger" data-i18n="deleteRoute"></button>
+            </div>
+            <p class="hint small" data-i18n="hint"></p>
+            <div id="rows" class="rows"></div>
+          </section>
+
+          <!-- Map -->
+          <section class="card">
+            <h2 data-i18n="mapHeader"></h2>
+            <p class="small" data-i18n="mapHint"></p>
+            <div id="map" class="map"></div>
+          </section>
+
+          <!-- Actions -->
+          <section class="card actions-row">
+            <button id="save-route-btn" data-i18n="saveRoute"></button>
+            <button id="add-route-btn" class="ghost" data-i18n="addRoute"></button>
+            <button id="reset-defaults-btn" class="ghost" data-i18n="resetDefaults"></button>
+            <p id="status" class="status" style="flex:1;text-align:right"></p>
+          </section>
+        </section>
+      </main>
+    </div>
     <script type="module" src="/src/admin.js"></script>
   </body>
 </html>

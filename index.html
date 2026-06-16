@@ -11,7 +11,88 @@
     <title>Letter Quest</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+
+      <!-- Lobby (shown when no game slug in URL) -->
+      <main id="lobby" class="container hidden">
+        <div class="actions" style="justify-content:flex-end; margin-bottom: 8px;">
+          <label for="language-select-lobby">
+            <span data-i18n="languageLabel"></span>:
+            <select id="language-select-lobby">
+              <option value="en">EN</option>
+              <option value="nl">NL</option>
+            </select>
+          </label>
+        </div>
+        <h1 data-i18n="lobbyTitle"></h1>
+        <p class="hint" data-i18n="lobbyHint"></p>
+        <section class="card" id="game-list"></section>
+      </main>
+
+      <!-- Game UI (shown when a game slug is present) -->
+      <main id="game-ui" class="container hidden">
+        <div class="actions" style="justify-content:flex-start; margin-bottom: 8px;">
+          <a id="back-link" class="muted" href="/"></a>
+        </div>
+        <img id="game-logo" class="game-logo hidden" alt="" />
+        <h1 id="game-title" data-i18n="title"></h1>
+        <p id="paid-badge" class="paid-badge hidden"></p>
+        <p class="hint" data-i18n="hint"></p>
+        <p id="config-status" class="muted"></p>
+
+        <section id="card-payment" class="card hidden">
+          <h2 data-i18n="payToPlay"></h2>
+          <p id="payment-message"></p>
+          <div class="actions">
+            <button id="pay-and-play" type="button" data-i18n="payButton"></button>
+          </div>
+        </section>
+
+        <section id="card-target" class="card">
+          <h2 data-i18n="currentTarget"></h2>
+          <p id="route-badge" class="route-badge"></p>
+          <p id="target-name"></p>
+          <img id="location-image" class="location-image hidden" alt="" />
+          <p id="location-description" class="location-description hidden"></p>
+          <p id="distance" class="distance"></p>
+        </section>
+
+        <section id="card-progress" class="card">
+          <h2 data-i18n="progress"></h2>
+          <p id="progress"></p>
+          <p id="letters" class="letters"></p>
+        </section>
+
+        <section id="card-location" class="card">
+          <h2 data-i18n="locationTitle"></h2>
+          <p data-i18n="locationRequired"></p>
+          <div class="actions">
+            <button id="enable-location" type="button" data-i18n="enableLocation"></button>
+          </div>
+        </section>
+
+        <section id="card-question" class="card hidden">
+          <h2 data-i18n="questionTitle"></h2>
+          <p id="question-text"></p>
+          <input id="answer-input" type="text" autocomplete="off" data-i18n-placeholder="answerPlaceholder" />
+          <p id="answer-feedback" class="answer-feedback hidden"></p>
+          <div class="actions">
+            <button id="submit-answer" type="button" data-i18n="submitAnswer"></button>
+          </div>
+        </section>
+
+        <section id="card-status" class="card">
+          <h2 data-i18n="status"></h2>
+          <p id="status"></p>
+          <p id="pending-letter" class="pending"></p>
+          <div class="actions">
+            <button id="confirm-letter" type="button" disabled data-i18n="confirmAndNext"></button>
+            <button id="next-route" type="button" class="hidden" data-i18n="startNextRoute"></button>
+          </div>
+        </section>
+      </main>
+
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

@@ -238,6 +238,22 @@ button.danger:not(:disabled):hover {
   margin-bottom: 8px;
 }
 
+.payment-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.payment-price-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#price-euros {
+  width: 120px;
+}
+
 /* Game selector row */
 .game-select-row {
   display: flex;

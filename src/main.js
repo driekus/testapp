@@ -4,6 +4,15 @@ import { defaultConfig } from './config.js'
 import { hasSupabaseConfig, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient.js'
 import { fetchGameForPlay, fetchRouteStart, listGames } from './userConfigService.js'
 import { getLanguage, setLanguage, t } from './i18n.js'
+import {
+  clearStoredPaymentToken,
+  formatEuro,
+  getStoredPaymentToken,
+  pollUntilPaid,
+  startPayment,
+  storePaymentToken,
+  verifyPaymentToken,
+} from './payment.js'
 
 const LOCATION_RADIUS_METERS = 5
 const MAX_ALLOWED_GPS_ACCURACY_METERS = 11
@@ -26,6 +35,10 @@ const state = {
   currentRouteId: null,     // DB id of the active route row — used for Edge Function calls
   route: defaultConfig().route,
   displayName: '',
+  requiresPayment: false,
+  priceInCents: 0,
+  paymentToken: null,
+  paymentReady: true,
   // quest progress
   currentLocationIndex: 0,
   collectedLetters: [],     // accumulated across all routes
@@ -42,40 +55,61 @@ const state = {
   routeComplete: false,     // true while waiting for player to advance to next route
   statusMessage: tm('tapToBegin'),
   configStatus: tm('configLoading'),
+  lastDistanceToTarget: null,
+}
+
+// ─── Translations ───────────────────────────────────────────────────────────
+
+function applyTranslations(root) {
+  root.querySelectorAll('[data-i18n]').forEach((el) => {
+    el.textContent = tm(el.dataset.i18n)
+  })
+  root.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+    el.placeholder = tm(el.dataset.i18nPlaceholder)
+  })
 }
 
 // ─── Lobby ─────────────────────────────────────────────────────────────────
 
 function renderLobby(games) {
-  const app = document.querySelector('#app')
-  const listHtml = games.length
-    ? games.map((g) => `<a class="game-link" href="/${g.slug}">${g.display_name}</a>`).join('')
-    : `<p class="muted">${tm('noGamesAvailable')}</p>`
+  const gameList = document.querySelector('#game-list')
+  gameList.replaceChildren()
+  if (games.length === 0) {
+    const p = document.createElement('p')
+    p.className = 'muted'
+    p.textContent = tm('noGamesAvailable')
+    gameList.appendChild(p)
+  } else {
+    for (const g of games) {
+      const a = document.createElement('a')
+      a.className = 'game-link'
+      a.href = `/${g.slug}`
+      const title = document.createElement('span')
+      title.textContent = g.display_name
+      a.appendChild(title)
 
-  app.innerHTML = `
-    <main class="container">
-      <div class="actions" style="justify-content:flex-end; margin-bottom: 8px;">
-        <label for="language-select">${tm('languageLabel')}:
-          <select id="language-select">
-            <option value="en" ${language === 'en' ? 'selected' : ''}>EN</option>
-            <option value="nl" ${language === 'nl' ? 'selected' : ''}>NL</option>
-          </select>
-        </label>
-      </div>
-      <h1>${tm('lobbyTitle')}</h1>
-      <p class="hint">${tm('lobbyHint')}</p>
-      <section class="card game-list">${listHtml}</section>
-    </main>
-  `
-  document.querySelector('#language-select').addEventListener('change', (e) => {
-    setLanguage(e.target.value)
-    window.location.reload()
-  })
+      if (g.requires_payment) {
+        const badge = document.createElement('span')
+        badge.className = 'paid-badge'
+        badge.textContent = `\uD83D\uDD12 ${formatEuro(g.price_in_cents ?? 0)}`
+        a.appendChild(badge)
+      }
+      gameList.appendChild(a)
+    }
+  }
 }
 
 async function showLobby() {
-  const app = document.querySelector('#app')
-  app.innerHTML = `<main class="container"><p class="muted">${tm('configLoading')}</p></main>`
+  const lobby = document.querySelector('#lobby')
+  applyTranslations(lobby)
+  document.querySelector('#language-select-lobby').value = language
+  lobby.classList.remove('hidden')
+
+  const loading = document.createElement('p')
+  loading.className = 'muted'
+  loading.textContent = tm('configLoading')
+  document.querySelector('#game-list').replaceChildren(loading)
+
   try {
     renderLobby(await listGames())
   } catch {
@@ -83,74 +117,15 @@ async function showLobby() {
   }
 }
 
-// ─── Game UI ────────────────────────────────────────────────────────────────
-
-function buildGameUi() {
-  document.querySelector('#app').innerHTML = `
-    <main class="container">
-      <div class="actions" style="justify-content:space-between; margin-bottom: 8px;">
-        <a class="muted" href="/">← ${tm('allGames')}</a>
-        <label for="language-select">${tm('languageLabel')}:
-          <select id="language-select">
-            <option value="en" ${language === 'en' ? 'selected' : ''}>EN</option>
-            <option value="nl" ${language === 'nl' ? 'selected' : ''}>NL</option>
-          </select>
-        </label>
-      </div>
-      <h1 id="game-title">${tm('title')}</h1>
-      <p class="hint">${tm('hint')}</p>
-      <p id="config-status" class="muted"></p>
-
-      <section id="card-target" class="card">
-        <h2>${tm('currentTarget')}</h2>
-        <p id="route-badge" class="route-badge"></p>
-        <p id="target-name"></p>
-        <img id="location-image" class="location-image hidden" alt="" />
-        <p id="distance" class="distance"></p>
-      </section>
-
-      <section id="card-progress" class="card">
-        <h2>${tm('progress')}</h2>
-        <p id="progress"></p>
-        <p id="letters" class="letters"></p>
-      </section>
-
-      <section id="card-location" class="card">
-        <h2>${tm('locationTitle')}</h2>
-        <p>${tm('locationRequired')}</p>
-        <div class="actions">
-          <button id="enable-location" type="button">${tm('enableLocation')}</button>
-        </div>
-      </section>
-
-      <section id="card-question" class="card hidden">
-        <h2>${tm('questionTitle')}</h2>
-        <p id="question-text"></p>
-        <input id="answer-input" type="text" autocomplete="off" placeholder="${tm('answerPlaceholder')}" />
-        <p id="answer-feedback" class="answer-feedback hidden"></p>
-        <div class="actions">
-          <button id="submit-answer" type="button">${tm('submitAnswer')}</button>
-        </div>
-      </section>
-
-      <section id="card-status" class="card">
-        <h2>${tm('status')}</h2>
-        <p id="status"></p>
-        <p id="pending-letter" class="pending"></p>
-        <div class="actions">
-          <button id="confirm-letter" type="button" disabled>${tm('confirmAndNext')}</button>
-          <button id="next-route" type="button" class="hidden">${tm('startNextRoute')}</button>
-        </div>
-      </section>
-    </main>
-  `
-}
 
 function getEls() {
   return {
-    languageSelect: document.querySelector('#language-select'),
     gameTitle: document.querySelector('#game-title'),
+    paidBadge: document.querySelector('#paid-badge'),
     configStatus: document.querySelector('#config-status'),
+    cardPayment: document.querySelector('#card-payment'),
+    paymentMessage: document.querySelector('#payment-message'),
+    payAndPlay: document.querySelector('#pay-and-play'),
     cardTarget: document.querySelector('#card-target'),
     cardProgress: document.querySelector('#card-progress'),
     cardLocation: document.querySelector('#card-location'),
@@ -162,7 +137,9 @@ function getEls() {
     submitAnswer: document.querySelector('#submit-answer'),
     routeBadge: document.querySelector('#route-badge'),
     targetName: document.querySelector('#target-name'),
+    gameLogo: document.querySelector('#game-logo'),
     locationImage: document.querySelector('#location-image'),
+    locationDescription: document.querySelector('#location-description'),
     distance: document.querySelector('#distance'),
     progress: document.querySelector('#progress'),
     letters: document.querySelector('#letters'),
@@ -176,11 +153,44 @@ function getEls() {
 
 let els = {}
 
+function updatePaidBadge() {
+  if (!els.paidBadge) return
+  if (!state.requiresPayment) {
+    els.paidBadge.classList.add('hidden')
+    return
+  }
+  els.paidBadge.textContent = `\uD83D\uDD12 ${tm('paidGame')} - ${formatEuro(state.priceInCents)}`
+  els.paidBadge.classList.remove('hidden')
+}
+
+function showPaymentCard(messageKey, buttonKey = 'payButton', hideButton = false) {
+  if (!els.cardPayment) return
+  els.cardPayment.classList.remove('hidden')
+  els.paymentMessage.textContent = tm(messageKey)
+  els.payAndPlay.textContent = tm(buttonKey)
+  els.payAndPlay.disabled = false
+  els.payAndPlay.classList.toggle('hidden', hideButton)
+}
+
 function updateUi() {
   const totalRoutes = state.gameRoutes.length
   const currentRouteData = state.gameRoutes[state.currentRouteIndex]
   const currentTarget = state.route[state.currentLocationIndex]
   const completedInRoute = state.collectedLetters.length - (state.currentRouteIndex * 0)
+
+  updatePaidBadge()
+
+  if (state.requiresPayment && !state.paymentReady) {
+    els.cardPayment.classList.remove('hidden')
+    els.cardTarget.classList.add('hidden')
+    els.cardProgress.classList.add('hidden')
+    els.cardLocation.classList.add('hidden')
+    els.cardStatus.classList.add('hidden')
+    els.cardQuestion.classList.add('hidden')
+    return
+  }
+
+  els.cardPayment.classList.add('hidden')
 
   // When location is not yet enabled, show only the location card
   const locationActive = state.geoWatchId !== null
@@ -292,37 +302,140 @@ function updateUi() {
     : ''
   els.confirmLetter.disabled = !state.pendingLetter
 
-  // Show location image OR distance — never both
+  // Show image and/or description as hint, or distance — hints suppress distance
   if (currentTarget.image_url) {
     els.locationImage.src = currentTarget.image_url
     els.locationImage.classList.remove('hidden')
-    els.distance.textContent = ''
   } else {
     els.locationImage.classList.add('hidden')
     els.locationImage.src = ''
-    if (state.userPosition) {
-      const effectiveRadius = Math.min(
-        MAX_ALLOWED_GPS_ACCURACY_METERS,
-        Math.max(LOCATION_RADIUS_METERS, state.userPosition.accuracy),
-      )
-      const meters = Math.round(
-        distanceMeters(
-          state.userPosition.latitude,
-          state.userPosition.longitude,
-          currentTarget.lat,
-          currentTarget.lng,
-        ),
-      )
-      els.distance.textContent = tm('distanceLine', {
-        meters,
-        target: Math.round(effectiveRadius),
-        base: LOCATION_RADIUS_METERS,
-        accuracy: Math.round(state.userPosition.accuracy),
-      })
-    } else {
-      els.distance.textContent = tm('distanceUnknown')
-    }
   }
+
+  if (currentTarget.description) {
+    els.locationDescription.textContent = currentTarget.description
+    els.locationDescription.classList.remove('hidden')
+  } else {
+    els.locationDescription.classList.add('hidden')
+    els.locationDescription.textContent = ''
+  }
+
+  if (currentTarget.image_url || currentTarget.description) {
+    els.distance.textContent = ''
+  } else if (state.userPosition) {
+    const effectiveRadius = Math.min(
+      MAX_ALLOWED_GPS_ACCURACY_METERS,
+      Math.max(LOCATION_RADIUS_METERS, state.userPosition.accuracy),
+    )
+    const meters = Math.round(
+      distanceMeters(
+        state.userPosition.latitude,
+        state.userPosition.longitude,
+        currentTarget.lat,
+        currentTarget.lng,
+      ),
+    )
+    els.distance.textContent = tm('distanceLine', {
+      meters,
+      target: Math.round(effectiveRadius),
+      base: LOCATION_RADIUS_METERS,
+      accuracy: Math.round(state.userPosition.accuracy),
+    })
+  } else {
+    els.distance.textContent = tm('distanceUnknown')
+  }
+}
+
+function pushNextLocation(next) {
+  if (!next) return
+  const last = state.route[state.route.length - 1]
+  if (last?.lat === next.lat && last?.lng === next.lng) return
+  state.route.push(next)
+}
+
+// ─── Session persistence ─────────────────────────────────────────────────────
+
+const SESSION_KEY = slug ? `letter-quest-session-${slug}` : null
+
+function saveSession() {
+  if (!SESSION_KEY) return
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
+      v: 1,
+      currentRouteIndex: state.currentRouteIndex,
+      currentRouteId: state.currentRouteId,
+      currentLocationIndex: state.currentLocationIndex,
+      collectedLetters: state.collectedLetters,
+      pendingLetter: state.pendingLetter,
+      route: state.route,
+      gameRoutes: state.gameRoutes,
+      displayName: state.displayName,
+      routeComplete: state.routeComplete,
+      lastLetterGrantedAt: state.lastLetterGrantedAt,
+    }))
+  } catch { /* storage full or unavailable */ }
+}
+
+function clearSession() {
+  if (!SESSION_KEY) return
+  try { localStorage.removeItem(SESSION_KEY) } catch {}
+}
+
+function loadSavedSession() {
+  if (!SESSION_KEY) return null
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+// ─── Audio feedback ─────────────────────────────────────────────────────────
+
+let audioCtx = null
+
+function playHappySound() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+
+  const notes = [523.25, 659.25, 783.99] // C5, E5, G5
+  const noteDuration = 0.12
+  const gap = 0.05
+
+  notes.forEach((freq, i) => {
+    const start = audioCtx.currentTime + i * (noteDuration + gap)
+    const osc = audioCtx.createOscillator()
+    const gain = audioCtx.createGain()
+    osc.connect(gain)
+    gain.connect(audioCtx.destination)
+    osc.frequency.value = freq
+    osc.type = 'sine'
+    gain.gain.setValueAtTime(0.35, start)
+    gain.gain.exponentialRampToValueAtTime(0.001, start + noteDuration)
+    osc.start(start)
+    osc.stop(start + noteDuration)
+  })
+}
+
+function playDoubleBeep() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+
+  const beepDuration = 0.25
+  const pauseBetween = 0.4
+
+  function beep(startTime) {
+    const osc = audioCtx.createOscillator()
+    const gain = audioCtx.createGain()
+    osc.connect(gain)
+    gain.connect(audioCtx.destination)
+    osc.frequency.value = 440
+    osc.type = 'sine'
+    gain.gain.setValueAtTime(0.4, startTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + beepDuration)
+    osc.start(startTime)
+    osc.stop(startTime + beepDuration)
+  }
+
+  const now = audioCtx.currentTime
+  beep(now)
+  beep(now + beepDuration + pauseBetween)
 }
 
 // ─── Game logic ─────────────────────────────────────────────────────────────
@@ -360,6 +473,7 @@ function checkArrival() {
     }
     state.lastLetterGrantedAt = Date.now()
     state.statusMessage = tm('reached', { name: currentTarget.name })
+    playHappySound()
     if (currentTarget.question) {
       state.pendingQuestion = true
       state.answerWrong = false
@@ -404,6 +518,21 @@ function handleLocationSuccess(position) {
 
   state.userPosition = candidate
   state.lastTrustedPosition = candidate
+
+  const currentTarget = state.route[state.currentLocationIndex]
+  if (currentTarget && !state.pendingLetter && !state.pendingQuestion && !state.routeComplete && !currentTarget.image_url && !currentTarget.description) {
+    const newDistance = distanceMeters(
+      candidate.latitude,
+      candidate.longitude,
+      currentTarget.lat,
+      currentTarget.lng,
+    )
+    if (state.lastDistanceToTarget !== null && newDistance > state.lastDistanceToTarget + 10) {
+      playDoubleBeep()
+    }
+    state.lastDistanceToTarget = newDistance
+  }
+
   checkArrival()
   updateUi()
 }
@@ -460,14 +589,16 @@ async function confirmArrival() {
       body: JSON.stringify({
         route_id: state.currentRouteId,
         location_index: state.currentLocationIndex,
+        payment_token: state.requiresPayment ? state.paymentToken : null,
       }),
     })
     const json = await res.json()
     if (!res.ok) throw new Error(json.error ?? res.statusText)
 
     state.pendingLetter = json.letter
-    if (json.next_location) state.route.push(json.next_location)
+    pushNextLocation(json.next_location)
     state.statusMessage = tm('reached', { name: state.route[state.currentLocationIndex].name })
+    saveSession()
   } catch {
     state.serverError = true
     state.statusMessage = tm('serverError')
@@ -498,6 +629,7 @@ async function submitAnswer() {
         route_id: state.currentRouteId,
         location_index: state.currentLocationIndex,
         answer: given,
+        payment_token: state.requiresPayment ? state.paymentToken : null,
       }),
     })
     const json = await res.json()
@@ -507,7 +639,8 @@ async function submitAnswer() {
       state.pendingQuestion = false
       state.answerAttempts = 0
       state.pendingLetter = json.letter
-      if (json.next_location) state.route.push(json.next_location)
+      pushNextLocation(json.next_location)
+      saveSession()
     } else {
       state.answerAttempts += 1
       const limit = currentTarget.max_attempts || 0
@@ -516,9 +649,11 @@ async function submitAnswer() {
         state.answerWrong = false
         state.answerAttempts = 0
         state.pendingLetter = null
+        state.collectedLetters = []
         state.currentLocationIndex = 0
         state.lastLetterGrantedAt = 0
         state.statusMessage = tm('tooManyWrongAnswers')
+        saveSession()
       } else {
         state.answerWrong = true
       }
@@ -529,6 +664,7 @@ async function submitAnswer() {
   } finally {
     state.checking = false
   }
+  checkArrival()
   updateUi()
 }
 
@@ -538,6 +674,7 @@ function confirmLetter() {
   state.collectedLetters.push(state.pendingLetter)
   state.pendingLetter = null
   state.currentLocationIndex += 1
+  state.lastDistanceToTarget = null
 
   if (state.currentLocationIndex >= state.route.length) {
     // Finished all locations in the current route
@@ -546,11 +683,25 @@ function confirmLetter() {
       state.routeComplete = true
       const nextRoute = state.gameRoutes[state.currentRouteIndex + 1]
       state.statusMessage = tm('routeComplete', { name: nextRoute.display_name })
+      saveSession()
     } else {
-      state.statusMessage = tm('questComplete')
+      clearSession()
+      try {
+        sessionStorage.setItem('letter-quest-feedback', JSON.stringify({
+          slug,
+          displayName: state.displayName,
+          letters: state.collectedLetters,
+          logoUrl: els.gameLogo?.src || '',
+          requiresPayment: state.requiresPayment,
+          paymentToken: state.paymentToken,
+        }))
+      } catch { /* ignore */ }
+      window.location.href = '/feedback.html'
+      return
     }
   } else {
     state.statusMessage = tm('nextTarget', { name: state.route[state.currentLocationIndex].name })
+    saveSession()
   }
   updateUi()
 }
@@ -563,14 +714,16 @@ async function startNextRoute() {
   state.pendingLetter = null
   state.lastLetterGrantedAt = 0
   state.routeComplete = false
+  state.lastDistanceToTarget = null
   state.checking = true
   state.statusMessage = tm('checking')
   updateUi()
 
   try {
-    const firstLocation = await fetchRouteStart(nextRoute.id)
+    const firstLocation = await fetchRouteStart(nextRoute.id, state.requiresPayment ? state.paymentToken : null)
     state.route = [firstLocation]
     state.statusMessage = tm('nextRouteStarted', { name: nextRoute.display_name })
+    saveSession()
   } catch {
     state.serverError = true
     state.statusMessage = tm('serverError')
@@ -578,6 +731,51 @@ async function startNextRoute() {
     state.checking = false
   }
   updateUi()
+}
+
+async function resolvePaymentAccess() {
+  state.paymentReady = false
+  const params = new URLSearchParams(window.location.search)
+  const paymentRequestToken = params.get('payment_request_token')
+  const storedToken = getStoredPaymentToken(slug)
+  let alreadyPlayed = false
+
+  updateUi()
+
+  if (storedToken) {
+    try {
+      const payment = await verifyPaymentToken(slug, storedToken)
+      if (payment.paid && payment.payment_token && !payment.played) {
+        state.paymentToken = payment.payment_token
+        state.paymentReady = true
+        return true
+      }
+      alreadyPlayed = Boolean(payment.played)
+      clearStoredPaymentToken(slug)
+      state.paymentToken = null
+    } catch {
+      clearStoredPaymentToken(slug)
+    }
+  }
+
+  if (paymentRequestToken) {
+    showPaymentCard('paymentPending', 'payButton', true)
+    try {
+      const payment = await pollUntilPaid(slug, paymentRequestToken, (token) => {
+        storePaymentToken(slug, token)
+      })
+      state.paymentToken = payment.payment_token
+      state.paymentReady = true
+      window.history.replaceState({}, '', `/${slug}`)
+      return true
+    } catch {
+      showPaymentCard('payToPlay')
+      return false
+    }
+  }
+
+  showPaymentCard(alreadyPlayed ? 'alreadyPlayed' : 'payToPlay', alreadyPlayed ? 'payAgain' : 'payButton')
+  return false
 }
 
 // ─── Config loading ─────────────────────────────────────────────────────────
@@ -592,17 +790,58 @@ async function loadGame() {
       state.configStatus = tm('gameNotFound', { slug })
       state.statusMessage = tm('tapToBegin')
     } else {
-      state.gameRoutes = game.routes
-      state.displayName = game.display_name
-      state.route = game.start_location ? [game.start_location] : []
-      state.currentRouteIndex = 0
-      state.currentRouteId = game.routes[0].id
-      state.currentLocationIndex = 0
-      state.collectedLetters = []
-      state.pendingLetter = null
-      state.lastLetterGrantedAt = 0
-      state.routeComplete = false
-      state.statusMessage = tm('tapToBegin')
+      state.requiresPayment = Boolean(game.requires_payment)
+      state.priceInCents = Number(game.price_in_cents) || 0
+      state.paymentReady = !state.requiresPayment
+      if (!state.requiresPayment) state.paymentToken = null
+
+      if (game.logo_url && els.gameLogo) {
+        els.gameLogo.src = game.logo_url
+        els.gameLogo.classList.remove('hidden')
+      }
+
+      if (state.requiresPayment) {
+        const canPlay = await resolvePaymentAccess()
+        if (!canPlay) {
+          state.configStatus = tm('configLoaded')
+          updateUi()
+          return
+        }
+      }
+
+      const saved = loadSavedSession()
+      const liveIds = game.routes.map((r) => r.id).join(',')
+      const savedIds = saved?.gameRoutes?.map((r) => r.id).join(',')
+      const compatible = saved?.v === 1 && liveIds === savedIds && saved.route?.length > 0
+
+      if (compatible) {
+        state.gameRoutes = saved.gameRoutes
+        state.displayName = saved.displayName || game.display_name
+        state.currentRouteIndex = saved.currentRouteIndex
+        state.currentRouteId = saved.currentRouteId
+        state.currentLocationIndex = saved.currentLocationIndex
+        state.collectedLetters = saved.collectedLetters ?? []
+        state.pendingLetter = saved.pendingLetter ?? null
+        state.route = saved.route.filter((loc, i, arr) =>
+          i === 0 || !(arr[i - 1].lat === loc.lat && arr[i - 1].lng === loc.lng),
+        )
+        state.routeComplete = saved.routeComplete ?? false
+        state.lastLetterGrantedAt = saved.lastLetterGrantedAt ?? 0
+        state.statusMessage = tm('sessionRestored')
+      } else {
+        state.gameRoutes = game.routes
+        state.displayName = game.display_name
+        state.route = game.start_location ? [game.start_location] : []
+        state.currentRouteIndex = 0
+        state.currentRouteId = game.routes[0].id
+        state.currentLocationIndex = 0
+        state.collectedLetters = []
+        state.pendingLetter = null
+        state.lastLetterGrantedAt = 0
+        state.routeComplete = false
+        state.statusMessage = tm('tapToBegin')
+      }
+
       state.configStatus = hasSupabaseConfig ? tm('configLoaded') : tm('configDefault')
     }
   } catch (error) {
@@ -621,20 +860,40 @@ if ('serviceWorker' in navigator) {
 }
 
 if (!slug) {
+  document.querySelector('#language-select-lobby').addEventListener('change', (e) => {
+    setLanguage(e.target.value)
+    window.location.reload()
+  })
   showLobby()
+  window.addEventListener('pageshow', (e) => { if (e.persisted) window.location.reload() })
 } else {
-  buildGameUi()
+  const gameUi = document.querySelector('#game-ui')
+  applyTranslations(gameUi)
+  const backLink = document.querySelector('#back-link')
+  backLink.textContent = `← ${tm('allGames')}`
+  backLink.addEventListener('click', (e) => {
+    e.preventDefault()
+    window.location.replace(`/?refresh=${Date.now()}`)
+  })
+  gameUi.classList.remove('hidden')
+
   els = getEls()
 
   els.enableLocation.addEventListener('click', startLocationTracking)
+  els.payAndPlay.addEventListener('click', async () => {
+    els.payAndPlay.disabled = true
+    try {
+      await startPayment(slug)
+    } catch {
+      els.payAndPlay.disabled = false
+      showPaymentCard('payToPlay')
+    }
+  })
   els.confirmLetter.addEventListener('click', confirmLetter)
   els.nextRoute.addEventListener('click', startNextRoute)
   els.submitAnswer.addEventListener('click', submitAnswer)
   els.answerInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAnswer() })
-  els.languageSelect.addEventListener('change', (e) => {
-    setLanguage(e.target.value)
-    window.location.reload()
-  })
+
 
   updateUi()
   loadGame()

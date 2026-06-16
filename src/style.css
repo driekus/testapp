@@ -95,7 +95,9 @@ h2 {
 }
 
 input[type='email'],
-input[type='password'] {
+input[type='password'],
+input[type='text'],
+input[type='tel'] {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid #bcccdc;
@@ -139,6 +141,34 @@ input[type='password'] {
   font-weight: 600;
 }
 
+/* Game logo — shown above the game title */
+.game-logo {
+  display: block;
+  max-height: 100px;
+  max-width: 240px;
+  object-fit: contain;
+  border-radius: 10px;
+  margin: 0 auto 4px;
+}
+
+/* Location description hint */
+.location-description {
+  font-style: italic;
+  color: #374151;
+  background: #f0f5ff;
+  border: 1px solid #c3d4f7;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .location-description {
+    color: #d1d5db;
+    background: #1e2d4a;
+    border-color: #3b5a9a;
+  }
+}
+
 /* Location image (shown instead of distance when a photo hint is set) */
 .location-image {
   width: 100%;
@@ -168,7 +198,10 @@ input[type='password'] {
 }
 
 .game-link {
-  display: block;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
   padding: 14px 16px;
   background: #f0f5ff;
   border: 1px solid #c3d4f7;
@@ -178,6 +211,18 @@ input[type='password'] {
   font-size: 1.05rem;
   text-decoration: none;
   transition: background 0.15s;
+}
+
+.paid-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 99px;
 }
 
 .game-link:hover {
@@ -193,6 +238,11 @@ input[type='password'] {
 
   .game-link:hover {
     background: #263b5e;
+  }
+
+  .paid-badge {
+    background: #451a03;
+    color: #fcd34d;
   }
 }
 
@@ -221,6 +271,30 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button.ghost {
+  background: transparent;
+  color: #2f7dff;
+}
+
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #bcccdc;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+@media (prefers-color-scheme: dark) {
+  textarea {
+    background: #0b1220;
+    border-color: #334155;
+    color: #e5e7eb;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   body {
     background: #0f172a;
@@ -242,7 +316,9 @@ button:disabled {
   }
 
   input[type='email'],
-  input[type='password'] {
+  input[type='password'],
+  input[type='text'],
+  input[type='tel'] {
     background: #0b1220;
     border-color: #334155;
     color: #e5e7eb;

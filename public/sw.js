@@ -1,4 +1,4 @@
-const CACHE_NAME = 'letter-quest-v1'
+const CACHE_NAME = 'letter-quest-v2'
 const APP_SHELL = ['/', '/index.html', '/admin.html', '/manifest.webmanifest']
 
 self.addEventListener('install', (event) => {
@@ -14,9 +14,12 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') {
-    return
-  }
+  if (event.request.method !== 'GET') return
+
+  // Only cache same-origin requests (app shell / assets).
+  // All cross-origin requests (Supabase API, storage) go straight to the network.
+  const url = new URL(event.request.url)
+  if (url.origin !== self.location.origin) return
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => cachedResponse || fetch(event.request)),

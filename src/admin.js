@@ -23,7 +23,9 @@ import {
   fetchGameWithRoutes,
   listGames,
   saveGame,
+  saveGameLogo,
   saveRoute,
+  uploadGameLogo,
   uploadLocationImage,
 } from './userConfigService.js'
 import { getLanguage, setLanguage, t } from './i18n.js'
@@ -43,6 +45,8 @@ const state = {
   games: [],
   currentGameId: null,
   currentSlug: null,
+  currentRequiresPayment: false,
+  currentPriceInCents: 0,
   // route management — array of {id, order_index, display_name, route, _dirty}
   routes: [],
   currentRouteIndex: 0,
@@ -56,108 +60,20 @@ const state = {
   authStatusMessage: hasSupabaseConfig ? ta('signInToLoad') : ta('envMissing'),
 }
 
-// ─── Shell HTML ──────────────────────────────────────────────────────────────
+// ─── Translations ────────────────────────────────────────────────────────────
 
-document.querySelector('#admin-app').innerHTML = `
-  <main class="admin-container">
-    <div class="top-row">
-      <h1>${ta('pageTitle')}</h1>
-      <div>
-        <label for="language-select">${ta('languageLabel')}:
-          <select id="language-select">
-            <option value="en" ${language === 'en' ? 'selected' : ''}>EN</option>
-            <option value="nl" ${language === 'nl' ? 'selected' : ''}>NL</option>
-          </select>
-        </label>
-        <a class="link" href="/">${ta('backToGame')}</a>
-      </div>
-    </div>
+function applyTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    el.textContent = ta(el.dataset.i18n)
+  })
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+    el.placeholder = ta(el.dataset.i18nPlaceholder)
+  })
+  document.querySelector('#language-select').value = language
+  document.querySelector('#route-location-count').max = String(MAX_ROUTE_LOCATIONS)
+}
 
-    <!-- Auth -->
-    <section class="card">
-      <h2>${ta('account')}</h2>
-      <p id="auth-user" class="small"></p>
-      <p id="auth-status" class="small"></p>
-      <div class="auth-grid">
-        <input id="auth-email" type="email" placeholder="${ta('emailPlaceholder')}" />
-        <input id="auth-password" type="password" placeholder="${ta('passwordPlaceholder')}" />
-      </div>
-      <div class="actions-row">
-        <button id="sign-in">${ta('signIn')}</button>
-        <button id="sign-up">${ta('signUp')}</button>
-        <button id="sign-in-github">${ta('signInGitHub')}</button>
-        <button id="sign-out">${ta('signOut')}</button>
-      </div>
-    </section>
-
-    <!-- Game picker -->
-    <section class="card">
-      <h2>${ta('gamesHeader')}</h2>
-      <div class="game-select-row">
-        <select id="game-select"><option value="">${ta('selectGameOption')}</option></select>
-        <button id="new-game-btn" disabled>${ta('newGame')}</button>
-        <button id="delete-game-btn" class="ghost danger" disabled>${ta('deleteGame')}</button>
-      </div>
-      <div id="new-game-form" class="new-game-form hidden">
-        <label>${ta('gameSlug')}
-          <input id="new-game-slug" type="text" placeholder="my-game" />
-          <span class="field-hint">${ta('gameSlugHint')}</span>
-        </label>
-        <label>${ta('gameDisplayName')}
-          <input id="new-game-display-name" type="text" placeholder="My Game" />
-        </label>
-        <div class="actions-row">
-          <button id="create-game-btn">${ta('createGame')}</button>
-          <button id="cancel-new-game-btn" class="ghost">${ta('cancel')}</button>
-        </div>
-      </div>
-      <p id="game-status" class="small"></p>
-    </section>
-
-    <!-- Editor (hidden until a game is selected) -->
-    <section id="editor-section" class="hidden">
-      <!-- Game display name -->
-      <section class="card">
-        <h2>${ta('gameDisplayNameLabel')}</h2>
-        <div class="actions-row">
-          <input id="edit-display-name" type="text" style="flex:1" />
-          <button id="save-display-name">${ta('saveName')}</button>
-        </div>
-      </section>
-
-      <!-- Route tabs -->
-      <section class="card">
-        <div class="route-tab-bar" id="route-tab-bar"></div>
-        <div class="route-meta-row">
-          <label style="flex:1">${ta('routeDisplayName')}
-            <input id="route-display-name-input" type="text" />
-          </label>
-          <label>${ta('locationCount')}
-            <input id="route-location-count" type="number" min="1" max="${MAX_ROUTE_LOCATIONS}" style="width:72px" />
-          </label>
-          <button id="delete-route-btn" class="ghost danger">${ta('deleteRoute')}</button>
-        </div>
-        <p class="hint small">${ta('hint')}</p>
-        <div id="rows" class="rows"></div>
-      </section>
-
-      <!-- Map -->
-      <section class="card">
-        <h2>${ta('mapHeader')}</h2>
-        <p class="small">${ta('mapHint')}</p>
-        <div id="map" class="map"></div>
-      </section>
-
-      <!-- Actions -->
-      <section class="card actions-row">
-        <button id="save-route-btn">${ta('saveRoute')}</button>
-        <button id="add-route-btn" class="ghost">${ta('addRoute')}</button>
-        <button id="reset-defaults-btn" class="ghost">${ta('resetDefaults')}</button>
-        <p id="status" class="status" style="flex:1;text-align:right"></p>
-      </section>
-    </section>
-  </main>
-`
+applyTranslations()
 
 const els = {
   languageSelect: document.querySelector('#language-select'),
@@ -181,6 +97,15 @@ const els = {
   editorSection: document.querySelector('#editor-section'),
   editDisplayName: document.querySelector('#edit-display-name'),
   saveDisplayName: document.querySelector('#save-display-name'),
+  requiresPayment: document.querySelector('#requires-payment'),
+  priceWrap: document.querySelector('#price-wrap'),
+  priceEuros: document.querySelector('#price-euros'),
+  logoPreviewWrap: document.querySelector('#logo-preview-wrap'),
+  logoPreviewImg: document.querySelector('#logo-preview-img'),
+  removeLogoBtn: document.querySelector('#remove-logo-btn'),
+  logoUploadLabel: document.querySelector('#logo-upload-label'),
+  logoFileInput: document.querySelector('#logo-file-input'),
+  logoUploadStatus: document.querySelector('#logo-upload-status'),
   routeTabBar: document.querySelector('#route-tab-bar'),
   routeDisplayNameInput: document.querySelector('#route-display-name-input'),
   routeLocationCount: document.querySelector('#route-location-count'),
@@ -190,6 +115,14 @@ const els = {
   addRouteBtn: document.querySelector('#add-route-btn'),
   resetDefaultsBtn: document.querySelector('#reset-defaults-btn'),
   status: document.querySelector('#status'),
+}
+
+const backToGameLink = document.querySelector('#back-to-game')
+if (backToGameLink) {
+  backToGameLink.addEventListener('click', (e) => {
+    e.preventDefault()
+    window.location.replace(`/?refresh=${Date.now()}`)
+  })
 }
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
@@ -209,6 +142,19 @@ function sanitizeSlugInput(raw) {
     .replace(/[^a-z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
+}
+
+function eurosToCents(value) {
+  return Math.max(0, Math.round((Number(value) || 0) * 100))
+}
+
+function centsToEuros(cents) {
+  return (Math.max(0, Number(cents) || 0) / 100).toFixed(2)
+}
+
+function syncPaymentControls() {
+  const on = Boolean(els.requiresPayment.checked)
+  els.priceWrap.classList.toggle('hidden', !on)
 }
 
 // ─── Auth UI ─────────────────────────────────────────────────────────────────
@@ -233,7 +179,10 @@ function updateAuthUi() {
 
 function populateGameSelect() {
   const cur = els.gameSelect.value
-  els.gameSelect.innerHTML = `<option value="">${ta('selectGameOption')}</option>`
+  const defaultOpt = document.createElement('option')
+  defaultOpt.value = ''
+  defaultOpt.textContent = ta('selectGameOption')
+  els.gameSelect.replaceChildren(defaultOpt)
   for (const g of state.games) {
     const opt = document.createElement('option')
     opt.value = g.slug
@@ -255,19 +204,15 @@ async function refreshGameList() {
 // ─── Route tabs ──────────────────────────────────────────────────────────────
 
 function renderRouteTabs() {
-  els.routeTabBar.innerHTML = state.routes
-    .map(
-      (r, i) => `
-      <button type="button"
-        class="route-tab${i === state.currentRouteIndex ? ' active' : ''}"
-        data-route-idx="${i}">
-        ${r.display_name}
-      </button>`,
-    )
-    .join('')
-
-  els.routeTabBar.querySelectorAll('.route-tab').forEach((btn) => {
-    btn.addEventListener('click', () => switchToRoute(Number(btn.dataset.routeIdx)))
+  els.routeTabBar.replaceChildren()
+  state.routes.forEach((r, i) => {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'route-tab' + (i === state.currentRouteIndex ? ' active' : '')
+    btn.dataset.routeIdx = String(i)
+    btn.textContent = r.display_name
+    btn.addEventListener('click', () => switchToRoute(i))
+    els.routeTabBar.appendChild(btn)
   })
 }
 
@@ -292,48 +237,112 @@ function switchToRoute(index) {
 
 // ─── Location editor ─────────────────────────────────────────────────────────
 
-function rowTemplate(point, index) {
+function createRowElement(point, index) {
   const hasImage = Boolean(point.image_url)
-  return `
-    <div class="row" data-row-index="${index}">
-      <div class="row-title">${index + 1}. ${ta('rowLocation')}</div>
-      <div class="row-fields">
-        <label>${ta('name')}
-          <input type="text" data-field="name" data-row-index="${index}" value="${point.name}" />
-        </label>
-        <label>${ta('letterAZ')}
-          <input type="text" maxlength="1" data-field="letter" data-row-index="${index}" value="${point.letter}" />
-        </label>
-        <label>${ta('latitude')}
-          <input type="number" step="any" data-field="lat" data-row-index="${index}" value="${point.lat}" />
-        </label>
-        <label>${ta('longitude')}
-          <input type="number" step="any" data-field="lng" data-row-index="${index}" value="${point.lng}" />
-        </label>
-        <label>${ta('question')}
-          <input type="text" data-field="question" data-row-index="${index}" value="${point.question ?? ''}" placeholder="${ta('questionPlaceholder')}" />
-        </label>
-        <label>${ta('answer')}
-          <input type="text" data-field="answer" data-row-index="${index}" value="${point.answer ?? ''}" placeholder="${ta('answerPlaceholder')}" />
-        </label>
-        <label>${ta('maxAttempts')}
-          <input type="number" min="0" step="1" data-field="max_attempts" data-row-index="${index}" value="${point.max_attempts ?? 0}" />
-        </label>
-        <input type="hidden" data-field="image_url" data-row-index="${index}" value="${point.image_url ?? ''}" />
-        <button type="button" data-pick-row="${index}" class="pick-button">${ta('pickFromMap')}</button>
-      </div>
-      <div class="row-image-area">
-        <div class="image-preview-wrap ${hasImage ? '' : 'hidden'}" data-preview="${index}">
-          <img class="location-image-preview" src="${point.image_url ?? ''}" alt="" />
-          <button type="button" class="ghost danger remove-image-btn" data-remove-image="${index}">${ta('removeImage')}</button>
-        </div>
-        <label class="upload-label ${hasImage ? 'hidden' : ''}" data-upload-label="${index}">
-          <span class="upload-btn-face">${ta('uploadImage')}</span>
-          <input type="file" accept="image/*" class="image-file-input" data-upload-row="${index}" style="display:none" />
-        </label>
-        <p class="upload-status small" data-upload-status="${index}"></p>
-      </div>
-    </div>`
+
+  const row = document.createElement('div')
+  row.className = 'row'
+  row.dataset.rowIndex = String(index)
+
+  const rowTitle = document.createElement('div')
+  rowTitle.className = 'row-title'
+  rowTitle.textContent = `${index + 1}. ${ta('rowLocation')}`
+  row.appendChild(rowTitle)
+
+  const rowFields = document.createElement('div')
+  rowFields.className = 'row-fields'
+
+  function addLabeledInput(labelText, type, fieldName, value, extra = {}) {
+    const label = document.createElement('label')
+    label.textContent = labelText
+    const input = document.createElement('input')
+    input.type = type
+    input.dataset.field = fieldName
+    input.dataset.rowIndex = String(index)
+    input.value = String(value)
+    if (extra.placeholder !== undefined) input.placeholder = extra.placeholder
+    if (extra.maxLength !== undefined) input.maxLength = extra.maxLength
+    if (extra.step !== undefined) input.step = extra.step
+    if (extra.min !== undefined) input.min = String(extra.min)
+    label.appendChild(input)
+    rowFields.appendChild(label)
+  }
+
+  addLabeledInput(ta('name'), 'text', 'name', point.name)
+  addLabeledInput(ta('letterAZ'), 'text', 'letter', point.letter, { maxLength: 1 })
+  addLabeledInput(ta('latitude'), 'number', 'lat', point.lat, { step: 'any' })
+  addLabeledInput(ta('longitude'), 'number', 'lng', point.lng, { step: 'any' })
+  addLabeledInput(ta('description'), 'text', 'description', point.description ?? '', { placeholder: ta('descriptionPlaceholder') })
+  addLabeledInput(ta('question'), 'text', 'question', point.question ?? '', { placeholder: ta('questionPlaceholder') })
+  addLabeledInput(ta('answer'), 'text', 'answer', point.answer ?? '', { placeholder: ta('answerPlaceholder') })
+  addLabeledInput(ta('maxAttempts'), 'number', 'max_attempts', point.max_attempts ?? 0, { min: 0, step: '1' })
+
+  const imageUrlInput = document.createElement('input')
+  imageUrlInput.type = 'hidden'
+  imageUrlInput.dataset.field = 'image_url'
+  imageUrlInput.dataset.rowIndex = String(index)
+  imageUrlInput.value = point.image_url ?? ''
+  rowFields.appendChild(imageUrlInput)
+
+  const pickBtn = document.createElement('button')
+  pickBtn.type = 'button'
+  pickBtn.dataset.pickRow = String(index)
+  pickBtn.className = 'pick-button'
+  pickBtn.textContent = ta('pickFromMap')
+  rowFields.appendChild(pickBtn)
+
+  row.appendChild(rowFields)
+
+  // Image area
+  const imageArea = document.createElement('div')
+  imageArea.className = 'row-image-area'
+
+  const previewWrap = document.createElement('div')
+  previewWrap.className = 'image-preview-wrap' + (hasImage ? '' : ' hidden')
+  previewWrap.dataset.preview = String(index)
+
+  const previewImg = document.createElement('img')
+  previewImg.className = 'location-image-preview'
+  previewImg.src = point.image_url ?? ''
+  previewImg.alt = ''
+  previewWrap.appendChild(previewImg)
+
+  const removeBtn = document.createElement('button')
+  removeBtn.type = 'button'
+  removeBtn.className = 'ghost danger remove-image-btn'
+  removeBtn.dataset.removeImage = String(index)
+  removeBtn.textContent = ta('removeImage')
+  previewWrap.appendChild(removeBtn)
+
+  imageArea.appendChild(previewWrap)
+
+  const uploadLabel = document.createElement('label')
+  uploadLabel.className = 'upload-label' + (hasImage ? ' hidden' : '')
+  uploadLabel.dataset.uploadLabel = String(index)
+
+  const uploadBtnFace = document.createElement('span')
+  uploadBtnFace.className = 'upload-btn-face'
+  uploadBtnFace.textContent = ta('uploadImage')
+  uploadLabel.appendChild(uploadBtnFace)
+
+  const fileInput = document.createElement('input')
+  fileInput.type = 'file'
+  fileInput.accept = 'image/*'
+  fileInput.className = 'image-file-input'
+  fileInput.dataset.uploadRow = String(index)
+  fileInput.style.display = 'none'
+  uploadLabel.appendChild(fileInput)
+
+  imageArea.appendChild(uploadLabel)
+
+  const uploadStatus = document.createElement('p')
+  uploadStatus.className = 'upload-status small'
+  uploadStatus.dataset.uploadStatus = String(index)
+  imageArea.appendChild(uploadStatus)
+
+  row.appendChild(imageArea)
+
+  return row
 }
 
 function getRowInputs(index) {
@@ -343,6 +352,7 @@ function getRowInputs(index) {
     lat: document.querySelector(`input[data-field="lat"][data-row-index="${index}"]`),
     lng: document.querySelector(`input[data-field="lng"][data-row-index="${index}"]`),
     image_url: document.querySelector(`input[data-field="image_url"][data-row-index="${index}"]`),
+    description: document.querySelector(`input[data-field="description"][data-row-index="${index}"]`),
     question: document.querySelector(`input[data-field="question"][data-row-index="${index}"]`),
     answer: document.querySelector(`input[data-field="answer"][data-row-index="${index}"]`),
     max_attempts: document.querySelector(`input[data-field="max_attempts"][data-row-index="${index}"]`),
@@ -376,6 +386,7 @@ function collectRouteFromInputs() {
     return {
       name, lat, lng, letter,
       image_url: ri.image_url?.value ?? '',
+      description: ri.description?.value.trim() ?? '',
       question: ri.question?.value.trim() ?? '',
       answer: ri.answer?.value.trim() ?? '',
       max_attempts: Math.max(0, Math.floor(Number(ri.max_attempts?.value) || 0)),
@@ -399,7 +410,7 @@ function setSelectedRow(index) {
 }
 
 function syncFormFromRoute(route) {
-  els.rows.innerHTML = route.map((point, i) => rowTemplate(point, i)).join('')
+  els.rows.replaceChildren(...route.map((point, i) => createRowElement(point, i)))
   els.routeLocationCount.value = route.length
   document.querySelectorAll('[data-pick-row]').forEach((btn) => {
     btn.addEventListener('click', () => setSelectedRow(Number(btn.dataset.pickRow)))
@@ -481,6 +492,50 @@ function bindRowsDelegate() {
   })
 }
 
+// ─── Logo upload ──────────────────────────────────────────────────────────────
+
+function setLogoPreview(url) {
+  if (url) {
+    els.logoPreviewImg.src = url
+    els.logoPreviewWrap.classList.remove('hidden')
+    els.logoUploadLabel.classList.add('hidden')
+  } else {
+    els.logoPreviewImg.src = ''
+    els.logoPreviewWrap.classList.add('hidden')
+    els.logoUploadLabel.classList.remove('hidden')
+  }
+}
+
+async function handleLogoUpload() {
+  const file = els.logoFileInput.files[0]
+  if (!file || !state.currentSlug) return
+
+  els.logoUploadStatus.textContent = ta('uploading')
+  els.logoUploadStatus.classList.remove('error')
+  try {
+    const url = await uploadGameLogo(file, state.currentSlug)
+    await saveGameLogo(state.currentSlug, url)
+    setLogoPreview(url)
+    els.logoUploadStatus.textContent = ta('uploadDone')
+  } catch (err) {
+    els.logoUploadStatus.textContent = ta('uploadFailed', { message: err.message })
+    els.logoUploadStatus.classList.add('error')
+  }
+  els.logoFileInput.value = ''
+}
+
+async function handleLogoRemove() {
+  if (!state.currentSlug) return
+  try {
+    await saveGameLogo(state.currentSlug, '')
+    setLogoPreview('')
+    els.logoUploadStatus.textContent = ''
+  } catch (err) {
+    els.logoUploadStatus.textContent = ta('uploadFailed', { message: err.message })
+    els.logoUploadStatus.classList.add('error')
+  }
+}
+
 function handleLocationCountChange() {
   const raw = Number(els.routeLocationCount.value)
   const newCount = Math.max(1, Math.min(MAX_ROUTE_LOCATIONS, Math.floor(raw) || 1))
@@ -532,6 +587,8 @@ async function loadGameIntoEditor(slug) {
   if (!slug) {
     state.currentSlug = null
     state.currentGameId = null
+    state.currentRequiresPayment = false
+    state.currentPriceInCents = 0
     state.routes = []
     els.editorSection.classList.add('hidden')
     updateAuthUi()
@@ -551,8 +608,15 @@ async function loadGameIntoEditor(slug) {
       ? game.routes
       : [{ id: null, order_index: 0, display_name: 'Route 1', route: [...DEFAULT_ROUTE] }]
     state.currentRouteIndex = 0
+    state.currentRequiresPayment = Boolean(game.requires_payment)
+    state.currentPriceInCents = Number(game.price_in_cents) || 0
 
     els.editDisplayName.value = game.display_name
+    els.requiresPayment.checked = state.currentRequiresPayment
+    els.priceEuros.value = centsToEuros(state.currentPriceInCents)
+    syncPaymentControls()
+    setLogoPreview(game.logo_url ?? '')
+    els.logoUploadStatus.textContent = ''
     els.routeDisplayNameInput.value = state.routes[0].display_name
     syncFormFromRoute(state.routes[0].route)
     renderRouteTabs()
@@ -679,7 +743,11 @@ async function handleSaveDisplayName() {
   const name = els.editDisplayName.value.trim()
   if (!name) { setStatus(ta('displayNameRequired'), true); return }
   try {
-    await saveGame(state.currentSlug, name)
+    const requiresPayment = els.requiresPayment.checked
+    const priceInCents = requiresPayment ? eurosToCents(els.priceEuros.value) : 0
+    await saveGame(state.currentSlug, name, requiresPayment, priceInCents)
+    state.currentRequiresPayment = requiresPayment
+    state.currentPriceInCents = priceInCents
     const g = state.games.find((x) => x.slug === state.currentSlug)
     if (g) g.display_name = name
     populateGameSelect()
@@ -790,6 +858,12 @@ els.cancelNewGameBtn.addEventListener('click', () => els.newGameForm.classList.a
 els.createGameBtn.addEventListener('click', handleCreateGame)
 els.deleteGameBtn.addEventListener('click', handleDeleteGame)
 els.saveDisplayName.addEventListener('click', handleSaveDisplayName)
+els.requiresPayment.addEventListener('change', () => {
+  syncPaymentControls()
+  if (!els.requiresPayment.checked) {
+    els.priceEuros.value = '0.00'
+  }
+})
 
 els.routeLocationCount.addEventListener('change', handleLocationCountChange)
 els.saveRouteBtn.addEventListener('click', handleSaveRoute)
@@ -801,7 +875,10 @@ els.resetDefaultsBtn.addEventListener('click', handleResetDefaults)
 
 setupMap()
 bindRowsDelegate()
+els.logoFileInput.addEventListener('change', handleLogoUpload)
+els.removeLogoBtn.addEventListener('click', handleLogoRemove)
 syncFormFromRoute(defaultConfig().route)
+syncPaymentControls()
 updateAuthUi()
 
 if (supabase) {

@@ -29,10 +29,16 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 
 ## Edge Functions
 
-The game uses two Supabase Edge Functions to keep answers, letters, and future locations off the client:
+The game uses Supabase Edge Functions for gameplay and payment:
 
-- `confirm-arrival` — called when a player reaches a location (no question). Returns the letter and the next location.
-- `check-answer` — called when a player submits an answer. Validates server-side and returns the letter and next location only if correct.
+- `get-game` — returns safe game metadata + first location only.
+- `get-route-start` — returns first location of a route.
+- `confirm-arrival` — returns the letter + next location when no question is required.
+- `check-answer` — validates answer server-side and returns letter + next location only if correct.
+- `create-payment` — creates a payment session (mock or real Tikkie).
+- `check-payment` — checks payment status by request token or payment token.
+- `tikkie-webhook` — confirms payment (called by mock page or real Tikkie webhook).
+- `mark-played` — marks a paid session as consumed after finishing.
 
 ### Deploy Edge Functions
 
@@ -51,12 +57,64 @@ supabase link --project-ref your-project-ref
 supabase secrets set SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-3. Deploy both functions:
+3. Deploy functions:
 
 ```powershell
+supabase functions deploy get-game
+supabase functions deploy get-route-start
+supabase functions deploy confirm-arrival
+supabase functions deploy check-answer
+supabase functions deploy create-payment
+supabase functions deploy check-payment
+supabase functions deploy tikkie-webhook
+supabase functions deploy mark-played
+```
+
+## Real Tikkie API setup (go live)
+
+By default, payment flow can run in mock mode. To use the real ABN AMRO Tikkie API, do this:
+
+1. Create/activate a Tikkie app in ABN AMRO Developer Portal and collect:
+   - `TIKKIE_API_KEY`
+   - `TIKKIE_APP_TOKEN`
+2. Set Supabase Edge Function secrets:
+
+```powershell
+supabase secrets set TIKKIE_MOCK=false
+supabase secrets set TIKKIE_API_KEY=your-tikkie-api-key
+supabase secrets set TIKKIE_APP_TOKEN=your-tikkie-app-token
+supabase secrets set TIKKIE_BASE_URL=https://api.abnamro.com/v2/tikkie
+```
+
+3. Register your webhook URL in ABN AMRO/Tikkie app settings:
+   - `https://<your-project-ref>.supabase.co/functions/v1/tikkie-webhook`
+4. Redeploy payment-related functions:
+
+```powershell
+supabase functions deploy create-payment
+supabase functions deploy check-payment
+supabase functions deploy tikkie-webhook
+supabase functions deploy mark-played
+```
+
+5. (Optional hardening) enable strict paid-token checks in gameplay functions:
+
+```powershell
+supabase secrets set STRICT_PAYMENT_VERIFICATION=true
+supabase functions deploy get-route-start
 supabase functions deploy confirm-arrival
 supabase functions deploy check-answer
 ```
+
+### Use sandbox first
+
+For ABN AMRO sandbox testing, use:
+
+```powershell
+supabase secrets set TIKKIE_BASE_URL=https://api-sandbox.abnamro.com/v2/tikkie
+```
+
+Keep `TIKKIE_MOCK=false` when testing real (sandbox) API calls.
 
 
 ## Install and run

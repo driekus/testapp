@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
 
     const { data, error } = await supabase
       .from('games')
-      .select('id, slug, display_name, routes(id, order_index, display_name, route)')
+      .select('id, slug, display_name, logo_url, requires_payment, price_in_cents, routes(id, order_index, display_name, route)')
       .eq('slug', slug)
       .maybeSingle()
 
@@ -49,10 +49,22 @@ Deno.serve(async (req) => {
       lng: firstLocation.lng,
       question: firstLocation.question ?? '',
       max_attempts: firstLocation.max_attempts ?? 0,
+      description: firstLocation.description ?? '',
     } : null
 
     return Response.json(
-      { game: { id: data.id, slug: data.slug, display_name: data.display_name, routes: routesMeta, start_location: startLocation } },
+      {
+        game: {
+          id: data.id,
+          slug: data.slug,
+          display_name: data.display_name,
+          logo_url: data.logo_url ?? '',
+          requires_payment: data.requires_payment ?? false,
+          price_in_cents: data.price_in_cents ?? 0,
+          routes: routesMeta,
+          start_location: startLocation,
+        },
+      },
       { headers: CORS },
     )
   } catch (err) {

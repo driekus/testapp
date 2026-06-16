@@ -104,6 +104,41 @@ begin
   end if;
 end $$;
 
+-- -----------------------------------------------------------------------------
+-- Payment columns on games
+-- -----------------------------------------------------------------------------
+alter table public.games add column if not exists requires_payment boolean not null default false;
+alter table public.games add column if not exists price_in_cents   integer  not null default 0;
+
+-- -----------------------------------------------------------------------------
+-- payment_sessions — one row per payment attempt
+-- -----------------------------------------------------------------------------
+create table if not exists public.payment_sessions (
+  id                    uuid        primary key default gen_random_uuid(),
+  game_slug             text        not null references public.games(slug) on delete cascade,
+  payment_request_token text        not null unique,
+  payment_token         text        unique,
+  paid                  boolean     not null default false,
+  played                boolean     not null default false,
+  player_name           text,
+  player_phone          text,
+  letters_collected     jsonb       not null default '[]',
+  amount_in_cents       integer,
+  created_at            timestamptz not null default now(),
+  paid_at               timestamptz,
+  played_at             timestamptz
+);
+
+alter table public.payment_sessions enable row level security;
+
+drop policy if exists "Service role manages payment sessions" on public.payment_sessions;
+
+-- Only edge functions (service role) read/write — no direct anon access
+create policy "Service role manages payment sessions"
+  on public.payment_sessions
+  using (auth.role() = 'service_role')
+  with check (auth.role() = 'service_role');
+
 -- Clean up legacy tables if present
 drop table if exists public.shared_config;
 drop table if exists public.user_configs;
