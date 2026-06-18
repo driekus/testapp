@@ -70,5 +70,9 @@ export async function fetchScoreboard(payload) {
   return callScoreFunction('get-scoreboard', payload)
 }
 
+export async function setScoreDisplayName(payload) {
+  return callScoreFunction('set-score-display-name', payload)
+}
+
 
 

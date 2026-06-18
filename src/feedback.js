@@ -3,7 +3,7 @@ import { getLanguage, t } from './i18n.js'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient.js'
 import { loadGameStyles } from './gameStyleService.js'
 import { markPlayed } from './payment.js'
-import { buildRankingsUrl } from './scoreService.js'
+import { buildRankingsUrl, setScoreDisplayName } from './scoreService.js'
 
 const language = getLanguage()
 const tm = (key, params) => t(language, 'main', key, params)
@@ -21,6 +21,7 @@ const requiresPayment = Boolean(data?.requiresPayment)
 const paymentToken = data?.paymentToken || null
 const finalScore = Number(data?.score) || 0
 const totalAnswerTimeMs = Number(data?.totalAnswerTimeMs) || 0
+const playerId = data?.playerId || ''
 const WINNER_SAVED_KEY = paymentToken ? `letter-quest-winner-saved-${paymentToken}` : null
 const FEEDBACK_DRAFT_KEY = `letter-quest-feedback-draft-${slug || 'default'}`
 
@@ -180,32 +181,40 @@ function goToGames() {
 }
 
 function hasUnsavedFormInput() {
-  return Boolean(
-    textarea.value.trim()
-    || winnerName.value.trim()
-    || winnerPhone.value.trim(),
-  )
-}
-
-function shouldBlockLeaving() {
-  if (allowPageExit) return false
-  if (feedbackSubmitted) return false
-  if (leaveConfirmedWithoutSubmit) return false
-  return true
-}
+   // Leaving guard is about unsent feedback message and missing winner details (when required)
+   if (textarea.value.trim()) return true
+   // Also check if winner fields are empty when payment is required and not yet saved
+   if (requiresPayment && !winnerSaved) {
+     const nameEmpty = !winnerName.value.trim()
+     const phoneEmpty = !winnerPhone.value.trim()
+     if (nameEmpty || phoneEmpty) return true
+   }
+   return false
+ }
+ 
+ function shouldBlockLeaving() {
+   if (!hasUnsavedFormInput()) return false
+   if (allowPageExit) return false
+   if (feedbackSubmitted) return false
+   if (leaveConfirmedWithoutSubmit) return false
+   if (winnerSaved) return false
+   return true
+ }
 
 async function confirmLeaveWithoutSubmit() {
   return window.confirm(tm('feedbackLeaveEmptyConfirm'))
 }
 
 async function confirmLeaveWithUnsavedInput() {
-  if (!shouldBlockLeaving()) return true
-  const confirmed = hasUnsavedFormInput()
-    ? window.confirm(tm('feedbackLeaveConfirm'))
-    : await confirmLeaveWithoutSubmit()
-  if (confirmed) leaveConfirmedWithoutSubmit = true
-  return confirmed
-}
+   if (!shouldBlockLeaving()) return true
+   // Show different message depending on what's unsaved
+   const hasFeedback = Boolean(textarea.value.trim())
+   const confirmed = hasFeedback
+     ? window.confirm(tm('feedbackLeaveConfirm'))
+     : window.confirm(tm('feedbackLeaveEmptyConfirm'))
+   if (confirmed) leaveConfirmedWithoutSubmit = true
+   return confirmed
+ }
 
 window.addEventListener('beforeunload', (event) => {
   if (!shouldBlockLeaving()) return
@@ -252,6 +261,20 @@ async function markPlayedIfNeeded() {
   winnerCard.classList.add('hidden')
 }
 
+async function saveScoreboardNameIfPresent() {
+  const name = winnerName.value.trim()
+  if (!name || !gameId || !playerId) return
+  try {
+    await setScoreDisplayName({
+      game_id: gameId,
+      player_id: playerId,
+      display_name: name,
+    })
+  } catch (err) {
+    console.warn('feedback: could not update scoreboard display name', err)
+  }
+}
+
 function hideWinnerConfirm() {
   winnerConfirm.classList.add('hidden')
 }
@@ -277,11 +300,14 @@ skipBtn.addEventListener('click', async () => {
   if (!(await confirmMissingWinnerFields())) return
   skipBtn.disabled = true
   saveWinnerBtn.disabled = true
+  // User explicitly chose to continue without feedback, so skip leave warnings.
+  allowPageExit = true
+  feedbackSubmitted = true
+  leaveConfirmedWithoutSubmit = true
   try {
+    await saveScoreboardNameIfPresent()
     await markPlayedIfNeeded()
-    feedbackSubmitted = true
     clearDraft()
-    allowPageExit = true
   } catch {
     // Do not block leaving the page if mark-played fails.
   }
@@ -309,6 +335,7 @@ submitBtn.addEventListener('click', async () => {
     })
     const json = await res.json()
     if (!res.ok) throw new Error(json.error ?? res.statusText)
+    await saveScoreboardNameIfPresent()
     await markPlayedIfNeeded()
     feedbackSubmitted = true
     clearDraft()
@@ -330,6 +357,7 @@ saveWinnerBtn.addEventListener('click', async () => {
   statusEl.classList.add('hidden')
 
   try {
+    await saveScoreboardNameIfPresent()
     await markPlayedIfNeeded()
     statusEl.textContent = tm('winnerSavedNotice')
     statusEl.classList.remove('hidden')

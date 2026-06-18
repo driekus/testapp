@@ -41,6 +41,7 @@ The game uses Supabase Edge Functions for gameplay and payment:
 - `mark-played` — marks a paid session as consumed after finishing.
 - `record-score-event` — stores score events and updates totals.
 - `get-scoreboard` — returns top 3 overall plus up to 3 runs for the current player.
+- `set-score-display-name` — updates scoreboard display name for a player's runs.
 
 Leaderboard rules:
 
@@ -79,6 +80,7 @@ supabase functions deploy tikkie-webhook
 supabase functions deploy mark-played
 supabase functions deploy record-score-event
 supabase functions deploy get-scoreboard
+supabase functions deploy set-score-display-name
 ```
 
 ## Real Tikkie API setup (go live)
