@@ -2,6 +2,39 @@ import { sanitizeRoute } from './config.js'
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient.js'
 
 const FETCH_TIMEOUT_MS = 6000
+const GAME_STYLE_FIELDS = [
+  'primary_color',
+  'primary_text_color',
+  'primary_hover_color',
+  'bg_color',
+  'text_color',
+  'text_muted_color',
+  'text_hint_color',
+  'card_bg_color',
+  'card_border_color',
+  'accent_color_teal',
+  'accent_color_amber',
+  'accent_text_amber',
+  'accent_bg_blue',
+  'accent_border_blue',
+  'accent_text_blue',
+  'input_border_color',
+  'input_bg_color',
+  'input_text_color',
+  'dark_bg_color',
+  'dark_text_color',
+  'dark_card_bg_color',
+  'dark_card_border_color',
+  'dark_input_bg_color',
+  'dark_input_border_color',
+  'dark_accent_bg_blue',
+  'dark_accent_border_blue',
+  'dark_accent_text_blue',
+  'font_family',
+  'border_radius_sm',
+  'border_radius_md',
+  'border_radius_lg',
+]
 
 function withTimeout(promise, ms) {
   const timeout = new Promise((_, reject) =>
@@ -173,6 +206,51 @@ export async function deleteGame(slug) {
   if (!supabase) throw new Error('Supabase is not configured.')
 
   const { error } = await supabase.from('games').delete().eq('slug', slug)
+  if (error) throw error
+}
+
+/**
+ * Fetch per-game CSS variable settings from game_styles.
+ * Returns null when no row exists yet.
+ * @param {string} gameId
+ */
+export async function fetchGameStyles(gameId) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+
+  const selectFields = `game_id, ${GAME_STYLE_FIELDS.join(',')}`
+  const { data, error } = await supabase
+    .from('game_styles')
+    .select(selectFields)
+    .eq('game_id', gameId)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
+
+/**
+ * Create or update per-game CSS variable settings.
+ * @param {string} gameId
+ * @param {Record<string, string>} styles
+ */
+export async function saveGameStyles(gameId, styles) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+
+  const payload = {
+    game_id: gameId,
+    updated_at: new Date().toISOString(),
+  }
+
+  for (const key of GAME_STYLE_FIELDS) {
+    if (styles[key] !== undefined) {
+      payload[key] = styles[key]
+    }
+  }
+
+  const { error } = await supabase
+    .from('game_styles')
+    .upsert(payload, { onConflict: 'game_id' })
+
   if (error) throw error
 }
 

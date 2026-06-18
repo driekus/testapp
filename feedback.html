@@ -19,6 +19,20 @@
           <p id="collected-letters" class="letters"></p>
         </section>
 
+        <section class="card" id="score-summary-card">
+          <h2 id="score-summary-title"></h2>
+          <p id="score-summary-points"></p>
+          <p id="score-summary-time" class="muted"></p>
+        </section>
+
+        <section class="card" id="scoreboard-card">
+          <h2 id="scoreboard-title"></h2>
+          <p id="scoreboard-hint" class="muted"></p>
+          <div class="actions">
+            <a id="view-rankings-link" class="link-button" href="/rankings.html"></a>
+          </div>
+        </section>
+
         <section id="card-winner" class="card hidden">
           <h2 data-i18n="winnerTitle"></h2>
           <p data-i18n="winnerHint"></p>
@@ -49,7 +63,6 @@
           <p id="feedback-thanks"></p>
         </section>
 
-        <a id="back-to-games" href="/"></a>
       </main>
     </div>
     <script type="module" src="/src/feedback.js"></script>

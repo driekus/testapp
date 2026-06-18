@@ -250,6 +250,75 @@ button.danger:not(:disabled):hover {
   gap: 8px;
 }
 
+.style-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.style-grid label {
+  font-size: 0.85rem;
+}
+
+.style-grid input[type='color'] {
+  width: 100%;
+  height: 38px;
+  padding: 4px;
+  border: 1px solid #bcccdc;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.style-preview {
+  margin-top: 4px;
+  padding: 10px;
+  border: 1px dashed #93c5fd;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.style-preview-card {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--preview-border-radius-lg, 12px);
+  border: 1px solid var(--preview-card-border-color, #d9e2ef);
+  background: var(--preview-card-bg-color, #ffffff);
+  color: var(--preview-text-color, #1f2937);
+  font-family: var(--preview-font-family, Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif);
+}
+
+.style-preview-card h4 {
+  margin: 0;
+}
+
+.style-preview-badge {
+  margin: 0;
+  width: fit-content;
+  border-radius: 99px;
+  padding: 3px 10px;
+  background: var(--preview-accent-bg-blue, #f0f5ff);
+  color: var(--preview-accent-text-blue, #1d4ed8);
+  border: 1px solid var(--preview-accent-border-blue, #c3d4f7);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.style-preview-button {
+  border: 1px solid var(--preview-primary-color, #2f7dff);
+  background: var(--preview-primary-color, #2f7dff);
+  color: var(--preview-primary-text-color, #ffffff);
+  border-radius: var(--preview-border-radius-sm, 8px);
+  padding: 10px 12px;
+  font-size: 0.95rem;
+}
+
+.style-preview-button.ghost {
+  background: transparent;
+  color: var(--preview-primary-color, #2f7dff);
+}
+
 #price-euros {
   width: 120px;
 }
@@ -368,6 +437,16 @@ input[type='password'] {
     background: #0b1220;
     border-color: #334155;
     color: #e5e7eb;
+  }
+
+  .style-grid input[type='color'] {
+    background: #0b1220;
+    border-color: #334155;
+  }
+
+  .style-preview {
+    background: #1a2744;
+    border-color: #3b5a9a;
   }
 
   .map {

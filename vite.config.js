@@ -7,8 +7,9 @@ export default defineConfig({
       rewrites: [
         // admin stays on admin.html
         { from: /^\/admin\.html/, to: '/admin.html' },
+        { from: /^\/rankings\.html/, to: '/rankings.html' },
         // everything else → index.html
-        { from: /^\/(?!admin\.html)/, to: '/index.html' },
+        { from: /^\/(?!admin\.html|rankings\.html)/, to: '/index.html' },
       ],
     },
   },
@@ -17,6 +18,9 @@ export default defineConfig({
       input: {
         main: 'index.html',
         admin: 'admin.html',
+        feedback: 'feedback.html',
+        rankings: 'rankings.html',
+        'mock-payment': 'mock-payment.html',
       },
     },
   },

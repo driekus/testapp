@@ -39,6 +39,15 @@ The game uses Supabase Edge Functions for gameplay and payment:
 - `check-payment` — checks payment status by request token or payment token.
 - `tikkie-webhook` — confirms payment (called by mock page or real Tikkie webhook).
 - `mark-played` — marks a paid session as consumed after finishing.
+- `record-score-event` — stores score events and updates totals.
+- `get-scoreboard` — returns top 3 overall plus up to 3 runs for the current player.
+
+Leaderboard rules:
+
+- Correct answer points: 10 (1st), 5 (2nd), 3 (3rd), 2 (4th), 1 (5th+).
+- Answering within 60 seconds adds the remaining whole seconds as a bonus.
+- Rankings are sorted by score descending, then total answer time ascending.
+- The separate rankings page shows the top 3 overall plus up to 3 of the current player's own runs.
 
 ### Deploy Edge Functions
 
@@ -68,6 +77,8 @@ supabase functions deploy create-payment
 supabase functions deploy check-payment
 supabase functions deploy tikkie-webhook
 supabase functions deploy mark-played
+supabase functions deploy record-score-event
+supabase functions deploy get-scoreboard
 ```
 
 ## Real Tikkie API setup (go live)
@@ -127,6 +138,7 @@ npm run dev
 ## Pages
 
 - Game: `/`
+- Rankings: `/rankings.html?slug=<game-slug>`
 - Admin: `/admin.html`
 - Language switch: both pages support `EN` and `NL` from the top selector.
 

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2f7dff" />
+    <title>Letter Quest — Rankings</title>
+  </head>
+  <body>
+    <div id="app">
+      <main class="container">
+        <div class="actions" style="justify-content:space-between; margin-bottom: 8px;">
+          <button id="rankings-close-btn" type="button" class="ghost"></button>
+          <a id="rankings-refresh-link" class="muted" href="#"></a>
+        </div>
+
+        <img id="game-logo" class="game-logo hidden" alt="" />
+        <h1 id="rankings-title"></h1>
+
+        <section class="card">
+          <h2 id="scoreboard-title"></h2>
+          <div id="scoreboard-list" class="scoreboard-list"></div>
+        </section>
+
+        <section class="card" id="my-rankings-card">
+          <h2 id="my-rankings-title"></h2>
+          <div id="my-rankings-list" class="scoreboard-list"></div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/rankings.js"></script>
+  </body>
+</html>
+
+
+

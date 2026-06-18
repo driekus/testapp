@@ -20,10 +20,12 @@ import {
   deleteGame,
   deleteLocationImage,
   deleteRoute,
+  fetchGameStyles,
   fetchGameWithRoutes,
   listGames,
   saveGame,
   saveGameLogo,
+  saveGameStyles,
   saveRoute,
   uploadGameLogo,
   uploadLocationImage,
@@ -47,6 +49,7 @@ const state = {
   currentSlug: null,
   currentRequiresPayment: false,
   currentPriceInCents: 0,
+  currentGameStyles: {},
   // route management — array of {id, order_index, display_name, route, _dirty}
   routes: [],
   currentRouteIndex: 0,
@@ -58,6 +61,74 @@ const state = {
   // auth
   user: null,
   authStatusMessage: hasSupabaseConfig ? ta('signInToLoad') : ta('envMissing'),
+}
+
+const STYLE_FIELDS = [
+  { key: 'primary_color', label: 'Primary', type: 'color' },
+  { key: 'primary_text_color', label: 'Primary text', type: 'color' },
+  { key: 'primary_hover_color', label: 'Primary hover', type: 'color' },
+  { key: 'bg_color', label: 'Background', type: 'color' },
+  { key: 'text_color', label: 'Text', type: 'color' },
+  { key: 'text_muted_color', label: 'Muted text', type: 'color' },
+  { key: 'text_hint_color', label: 'Hint text', type: 'color' },
+  { key: 'card_bg_color', label: 'Card background', type: 'color' },
+  { key: 'card_border_color', label: 'Card border', type: 'color' },
+  { key: 'accent_color_teal', label: 'Accent teal', type: 'color' },
+  { key: 'accent_color_amber', label: 'Accent amber', type: 'color' },
+  { key: 'accent_text_amber', label: 'Accent amber text', type: 'color' },
+  { key: 'accent_bg_blue', label: 'Accent blue bg', type: 'color' },
+  { key: 'accent_border_blue', label: 'Accent blue border', type: 'color' },
+  { key: 'accent_text_blue', label: 'Accent blue text', type: 'color' },
+  { key: 'input_border_color', label: 'Input border', type: 'color' },
+  { key: 'input_bg_color', label: 'Input background', type: 'color' },
+  { key: 'input_text_color', label: 'Input text', type: 'color' },
+  { key: 'dark_bg_color', label: 'Dark background', type: 'color' },
+  { key: 'dark_text_color', label: 'Dark text', type: 'color' },
+  { key: 'dark_card_bg_color', label: 'Dark card bg', type: 'color' },
+  { key: 'dark_card_border_color', label: 'Dark card border', type: 'color' },
+  { key: 'dark_input_bg_color', label: 'Dark input bg', type: 'color' },
+  { key: 'dark_input_border_color', label: 'Dark input border', type: 'color' },
+  { key: 'dark_accent_bg_blue', label: 'Dark accent bg', type: 'color' },
+  { key: 'dark_accent_border_blue', label: 'Dark accent border', type: 'color' },
+  { key: 'dark_accent_text_blue', label: 'Dark accent text', type: 'color' },
+  { key: 'font_family', label: 'Font family', type: 'text' },
+  { key: 'border_radius_sm', label: 'Radius small', type: 'text' },
+  { key: 'border_radius_md', label: 'Radius medium', type: 'text' },
+  { key: 'border_radius_lg', label: 'Radius large', type: 'text' },
+]
+
+const DEFAULT_GAME_STYLES = {
+  primary_color: '#2f7dff',
+  primary_text_color: '#ffffff',
+  primary_hover_color: '#1e5ecf',
+  bg_color: '#f5f7fb',
+  text_color: '#1f2937',
+  text_muted_color: '#6b7280',
+  text_hint_color: '#4b5563',
+  card_bg_color: '#ffffff',
+  card_border_color: '#d9e2ef',
+  accent_color_teal: '#0f766e',
+  accent_color_amber: '#fef3c7',
+  accent_text_amber: '#92400e',
+  accent_bg_blue: '#f0f5ff',
+  accent_border_blue: '#c3d4f7',
+  accent_text_blue: '#1d4ed8',
+  input_border_color: '#bcccdc',
+  input_bg_color: '#ffffff',
+  input_text_color: '#1f2937',
+  dark_bg_color: '#0f172a',
+  dark_text_color: '#e5e7eb',
+  dark_card_bg_color: '#111827',
+  dark_card_border_color: '#374151',
+  dark_input_bg_color: '#0b1220',
+  dark_input_border_color: '#334155',
+  dark_accent_bg_blue: '#1e2d4a',
+  dark_accent_border_blue: '#3b5a9a',
+  dark_accent_text_blue: '#93c5fd',
+  font_family: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
+  border_radius_sm: '8px',
+  border_radius_md: '10px',
+  border_radius_lg: '12px',
 }
 
 // ─── Translations ────────────────────────────────────────────────────────────
@@ -106,6 +177,10 @@ const els = {
   logoUploadLabel: document.querySelector('#logo-upload-label'),
   logoFileInput: document.querySelector('#logo-file-input'),
   logoUploadStatus: document.querySelector('#logo-upload-status'),
+  gameStyleFields: document.querySelector('#game-style-fields'),
+  gameStylePreview: document.querySelector('#game-style-preview'),
+  saveGameStylesBtn: document.querySelector('#save-game-styles-btn'),
+  resetGameStylesBtn: document.querySelector('#reset-game-styles-btn'),
   routeTabBar: document.querySelector('#route-tab-bar'),
   routeDisplayNameInput: document.querySelector('#route-display-name-input'),
   routeLocationCount: document.querySelector('#route-location-count'),
@@ -157,6 +232,76 @@ function syncPaymentControls() {
   els.priceWrap.classList.toggle('hidden', !on)
 }
 
+function validHexColor(value) {
+  return /^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/.test(String(value || '').trim())
+}
+
+function styleInputValue(field, styles) {
+  const value = styles[field.key] ?? DEFAULT_GAME_STYLES[field.key]
+  if (field.type !== 'color') return String(value ?? '')
+  return validHexColor(value) ? value : DEFAULT_GAME_STYLES[field.key]
+}
+
+function applyStylesToPreview(styles) {
+  if (!els.gameStylePreview) return
+
+  const previewMap = {
+    primary_color: '--preview-primary-color',
+    primary_text_color: '--preview-primary-text-color',
+    text_color: '--preview-text-color',
+    card_bg_color: '--preview-card-bg-color',
+    card_border_color: '--preview-card-border-color',
+    accent_bg_blue: '--preview-accent-bg-blue',
+    accent_border_blue: '--preview-accent-border-blue',
+    accent_text_blue: '--preview-accent-text-blue',
+    font_family: '--preview-font-family',
+    border_radius_sm: '--preview-border-radius-sm',
+    border_radius_lg: '--preview-border-radius-lg',
+  }
+
+  for (const [key, cssVar] of Object.entries(previewMap)) {
+    const value = styles[key] ?? DEFAULT_GAME_STYLES[key]
+    if (!value) continue
+    els.gameStylePreview.style.setProperty(cssVar, String(value))
+  }
+}
+
+function renderGameStyleEditor(styles = DEFAULT_GAME_STYLES) {
+  if (!els.gameStyleFields) return
+
+  const fields = STYLE_FIELDS.map((field) => {
+    const label = document.createElement('label')
+    label.textContent = field.label
+
+    const input = document.createElement('input')
+    input.type = field.type
+    input.dataset.styleField = field.key
+    input.value = styleInputValue(field, styles)
+    if (field.type !== 'color') input.placeholder = DEFAULT_GAME_STYLES[field.key]
+
+    label.appendChild(input)
+    return label
+  })
+
+  els.gameStyleFields.replaceChildren(...fields)
+  applyStylesToPreview(styles)
+}
+
+function collectStylesFromInputs() {
+  const payload = {}
+  for (const field of STYLE_FIELDS) {
+    const input = els.gameStyleFields.querySelector(`[data-style-field="${field.key}"]`)
+    if (!input) continue
+    const value = String(input.value || '').trim()
+    payload[field.key] = value || DEFAULT_GAME_STYLES[field.key]
+  }
+  return payload
+}
+
+function handleGameStylesPreviewInput() {
+  applyStylesToPreview(collectStylesFromInputs())
+}
+
 // ─── Auth UI ─────────────────────────────────────────────────────────────────
 
 function updateAuthUi() {
@@ -173,6 +318,8 @@ function updateAuthUi() {
   els.resetDefaultsBtn.disabled = !canEdit
   els.deleteRouteBtn.disabled = !canEdit || state.routes.length <= 1
   els.saveDisplayName.disabled = !canEdit
+  els.saveGameStylesBtn.disabled = !canEdit || !state.currentGameId
+  els.resetGameStylesBtn.disabled = !canEdit || !state.currentGameId
 }
 
 // ─── Game selector ───────────────────────────────────────────────────────────
@@ -589,8 +736,10 @@ async function loadGameIntoEditor(slug) {
     state.currentGameId = null
     state.currentRequiresPayment = false
     state.currentPriceInCents = 0
+    state.currentGameStyles = { ...DEFAULT_GAME_STYLES }
     state.routes = []
     els.editorSection.classList.add('hidden')
+    renderGameStyleEditor(DEFAULT_GAME_STYLES)
     updateAuthUi()
     return
   }
@@ -610,12 +759,15 @@ async function loadGameIntoEditor(slug) {
     state.currentRouteIndex = 0
     state.currentRequiresPayment = Boolean(game.requires_payment)
     state.currentPriceInCents = Number(game.price_in_cents) || 0
+    const savedStyles = await fetchGameStyles(game.id)
+    state.currentGameStyles = { ...DEFAULT_GAME_STYLES, ...(savedStyles ?? {}) }
 
     els.editDisplayName.value = game.display_name
     els.requiresPayment.checked = state.currentRequiresPayment
     els.priceEuros.value = centsToEuros(state.currentPriceInCents)
     syncPaymentControls()
     setLogoPreview(game.logo_url ?? '')
+    renderGameStyleEditor(state.currentGameStyles)
     els.logoUploadStatus.textContent = ''
     els.routeDisplayNameInput.value = state.routes[0].display_name
     syncFormFromRoute(state.routes[0].route)
@@ -758,6 +910,34 @@ async function handleSaveDisplayName() {
   }
 }
 
+async function handleSaveGameStyles() {
+  if (!state.user) { setStatus(ta('saveSignInFirst'), true); return }
+  if (!state.currentGameId) { setStatus(ta('noGameSelected'), true); return }
+
+  try {
+    const styles = collectStylesFromInputs()
+    await saveGameStyles(state.currentGameId, styles)
+    state.currentGameStyles = { ...styles }
+    setStatus(ta('gameStylesSaved'))
+  } catch (err) {
+    setStatus(ta('gameStylesSaveFailed', { message: err.message }), true)
+  }
+}
+
+async function handleResetGameStyles() {
+  if (!state.user) { setStatus(ta('saveSignInFirst'), true); return }
+  if (!state.currentGameId) { setStatus(ta('noGameSelected'), true); return }
+
+  try {
+    renderGameStyleEditor(DEFAULT_GAME_STYLES)
+    await saveGameStyles(state.currentGameId, DEFAULT_GAME_STYLES)
+    state.currentGameStyles = { ...DEFAULT_GAME_STYLES }
+    setStatus(ta('gameStylesReset'))
+  } catch (err) {
+    setStatus(ta('gameStylesSaveFailed', { message: err.message }), true)
+  }
+}
+
 // ─── Route CRUD ──────────────────────────────────────────────────────────────
 
 async function handleSaveRoute() {
@@ -858,6 +1038,10 @@ els.cancelNewGameBtn.addEventListener('click', () => els.newGameForm.classList.a
 els.createGameBtn.addEventListener('click', handleCreateGame)
 els.deleteGameBtn.addEventListener('click', handleDeleteGame)
 els.saveDisplayName.addEventListener('click', handleSaveDisplayName)
+els.saveGameStylesBtn.addEventListener('click', handleSaveGameStyles)
+els.resetGameStylesBtn.addEventListener('click', handleResetGameStyles)
+els.gameStyleFields.addEventListener('input', handleGameStylesPreviewInput)
+els.gameStyleFields.addEventListener('change', handleGameStylesPreviewInput)
 els.requiresPayment.addEventListener('change', () => {
   syncPaymentControls()
   if (!els.requiresPayment.checked) {
@@ -878,6 +1062,7 @@ bindRowsDelegate()
 els.logoFileInput.addEventListener('change', handleLogoUpload)
 els.removeLogoBtn.addEventListener('click', handleLogoRemove)
 syncFormFromRoute(defaultConfig().route)
+renderGameStyleEditor(DEFAULT_GAME_STYLES)
 syncPaymentControls()
 updateAuthUi()
 

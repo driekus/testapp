@@ -31,8 +31,9 @@
 
       <!-- Game UI (shown when a game slug is present) -->
       <main id="game-ui" class="container hidden">
-        <div class="actions" style="justify-content:flex-start; margin-bottom: 8px;">
+        <div class="actions" style="justify-content:space-between; margin-bottom: 8px;">
           <a id="back-link" class="muted" href="/"></a>
+          <a id="rankings-link" class="muted" href="/rankings.html"></a>
         </div>
         <img id="game-logo" class="game-logo hidden" alt="" />
         <h1 id="game-title" data-i18n="title"></h1>
@@ -61,6 +62,7 @@
           <h2 data-i18n="progress"></h2>
           <p id="progress"></p>
           <p id="letters" class="letters"></p>
+          <p id="score-total" class="score-total"></p>
         </section>
 
         <section id="card-location" class="card">
@@ -78,6 +80,7 @@
           <p id="answer-feedback" class="answer-feedback hidden"></p>
           <div class="actions">
             <button id="submit-answer" type="button" data-i18n="submitAnswer"></button>
+            <button id="skip-question" type="button" class="ghost" data-i18n="continueWithoutAnswer"></button>
           </div>
         </section>
 
@@ -90,6 +93,7 @@
             <button id="next-route" type="button" class="hidden" data-i18n="startNextRoute"></button>
           </div>
         </section>
+        <p id="score-toast" class="score-toast hidden" aria-live="polite"></p>
       </main>
 
     </div>

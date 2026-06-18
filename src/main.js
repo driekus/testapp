@@ -4,6 +4,15 @@ import { defaultConfig } from './config.js'
 import { hasSupabaseConfig, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient.js'
 import { fetchGameForPlay, fetchRouteStart, listGames } from './userConfigService.js'
 import { getLanguage, setLanguage, t } from './i18n.js'
+import { loadGameStyles } from './gameStyleService.js'
+import {
+  SCORE_EVENT_TYPES,
+  buildScoreEventKey,
+  buildRankingsUrl,
+  createPlaySessionId,
+  getPlayerId,
+  recordScoreEvent,
+} from './scoreService.js'
 import {
   clearStoredPaymentToken,
   formatEuro,
@@ -30,6 +39,7 @@ const slug = window.location.pathname.replace(/^\/+/, '').split('/')[0] || ''
 
 const state = {
   // game / route data
+  gameId: null,
   gameRoutes: [],           // [{id, order_index, display_name, route: [...]}]
   currentRouteIndex: 0,
   currentRouteId: null,     // DB id of the active route row — used for Edge Function calls
@@ -56,6 +66,12 @@ const state = {
   statusMessage: tm('tapToBegin'),
   configStatus: tm('configLoading'),
   lastDistanceToTarget: null,
+  playerId: '',
+  playerSessionId: '',
+  score: 0,
+  lastScoreDelta: 0,
+  totalAnswerTimeMs: 0,
+  questionStartedAt: 0,
 }
 
 // ─── Translations ───────────────────────────────────────────────────────────
@@ -135,6 +151,7 @@ function getEls() {
     answerInput: document.querySelector('#answer-input'),
     answerFeedback: document.querySelector('#answer-feedback'),
     submitAnswer: document.querySelector('#submit-answer'),
+    skipQuestion: document.querySelector('#skip-question'),
     routeBadge: document.querySelector('#route-badge'),
     targetName: document.querySelector('#target-name'),
     gameLogo: document.querySelector('#game-logo'),
@@ -143,8 +160,11 @@ function getEls() {
     distance: document.querySelector('#distance'),
     progress: document.querySelector('#progress'),
     letters: document.querySelector('#letters'),
+    scoreTotal: document.querySelector('#score-total'),
+    scoreToast: document.querySelector('#score-toast'),
     status: document.querySelector('#status'),
     pendingLetter: document.querySelector('#pending-letter'),
+    rankingsLink: document.querySelector('#rankings-link'),
     enableLocation: document.querySelector('#enable-location'),
     confirmLetter: document.querySelector('#confirm-letter'),
     nextRoute: document.querySelector('#next-route'),
@@ -152,6 +172,20 @@ function getEls() {
 }
 
 let els = {}
+let scoreToastTimer = null
+
+function showScoreToast(points) {
+  if (!els.scoreToast || !Number.isFinite(points) || points === 0) return
+
+  els.scoreToast.textContent = points > 0
+    ? tm('scoreLastGain', { points })
+    : tm('scoreLastPenalty', { points: Math.abs(points) })
+  els.scoreToast.classList.remove('hidden')
+  if (scoreToastTimer) clearTimeout(scoreToastTimer)
+  scoreToastTimer = setTimeout(() => {
+    els.scoreToast.classList.add('hidden')
+  }, 2200)
+}
 
 function updatePaidBadge() {
   if (!els.paidBadge) return
@@ -176,9 +210,11 @@ function updateUi() {
   const totalRoutes = state.gameRoutes.length
   const currentRouteData = state.gameRoutes[state.currentRouteIndex]
   const currentTarget = state.route[state.currentLocationIndex]
-  const completedInRoute = state.collectedLetters.length - (state.currentRouteIndex * 0)
 
   updatePaidBadge()
+  if (els.scoreTotal) {
+    els.scoreTotal.textContent = tm('scoreTotal', { score: state.score })
+  }
 
   if (state.requiresPayment && !state.paymentReady) {
     els.cardPayment.classList.remove('hidden')
@@ -209,12 +245,18 @@ function updateUi() {
     els.cardProgress.classList.add('hidden')
     els.cardStatus.classList.add('hidden')
     els.questionText.textContent = currentTarget?.question ?? ''
+    els.skipQuestion.textContent = tm('continueWithoutAnswer')
+    els.skipQuestion.disabled = state.checking
     els.answerFeedback.classList.toggle('hidden', !state.answerWrong)
     if (state.answerWrong) {
       const limit = currentTarget?.max_attempts || 0
-      els.answerFeedback.textContent = limit > 0
-        ? tm('answerWrongWithLimit', { attempts: state.answerAttempts, max: limit })
-        : tm('answerWrong')
+      if (limit > 0 && state.answerAttempts >= limit) {
+        els.answerFeedback.textContent = tm('maxAttemptsReached', { max: limit })
+      } else {
+        els.answerFeedback.textContent = limit > 0
+          ? tm('answerWrongWithLimit', { attempts: state.answerAttempts, max: limit })
+          : tm('answerWrong')
+      }
     }
     return
   }
@@ -228,6 +270,12 @@ function updateUi() {
 
   if (els.gameTitle) els.gameTitle.textContent = state.displayName || tm('title')
   els.configStatus.textContent = state.configStatus
+  if (els.rankingsLink) {
+    const showRankings = Boolean(state.gameId)
+    els.rankingsLink.href = buildRankingsUrl(slug)
+    els.rankingsLink.textContent = tm('viewRankings')
+    els.rankingsLink.classList.toggle('hidden', !showRankings)
+  }
 
   // Route badge: "Route 2 of 3"
   if (totalRoutes > 1 && currentRouteData) {
@@ -371,6 +419,12 @@ function saveSession() {
       displayName: state.displayName,
       routeComplete: state.routeComplete,
       lastLetterGrantedAt: state.lastLetterGrantedAt,
+      playerId: state.playerId,
+      playerSessionId: state.playerSessionId,
+      score: state.score,
+      lastScoreDelta: state.lastScoreDelta,
+      totalAnswerTimeMs: state.totalAnswerTimeMs,
+      questionStartedAt: state.questionStartedAt,
     }))
   } catch { /* storage full or unavailable */ }
 }
@@ -474,10 +528,12 @@ function checkArrival() {
     state.lastLetterGrantedAt = Date.now()
     state.statusMessage = tm('reached', { name: currentTarget.name })
     playHappySound()
+    void recordProgressEvent(SCORE_EVENT_TYPES.LOCATION_FOUND)
     if (currentTarget.question) {
       state.pendingQuestion = true
       state.answerWrong = false
       state.answerAttempts = 0
+      state.questionStartedAt = Date.now()
     } else {
       confirmArrival()
     }
@@ -576,6 +632,37 @@ async function edgeFunctionUrl(name) {
   return `${SUPABASE_URL}/functions/v1/${name}`
 }
 
+async function recordProgressEvent(eventType, extra = {}) {
+  if (!state.gameId || !state.playerSessionId || !state.currentRouteId) return
+
+  try {
+    const previousScore = state.score
+    const payload = {
+      game_id: state.gameId,
+      player_id: state.playerId,
+      player_session_id: state.playerSessionId,
+      event_type: eventType,
+      event_key: buildScoreEventKey(state.currentRouteId, state.currentLocationIndex, eventType),
+      ...extra,
+    }
+    const json = await recordScoreEvent(payload)
+    if (Number.isFinite(json?.score)) {
+      const nextScore = Number(json.score)
+      const delta = nextScore - previousScore
+      state.score = nextScore
+      if (delta !== 0) {
+        state.lastScoreDelta = delta
+        showScoreToast(delta)
+      }
+    }
+    if (Number.isFinite(json?.total_answer_time_ms)) {
+      state.totalAnswerTimeMs = Number(json.total_answer_time_ms)
+    }
+  } catch (err) {
+    console.warn('main: could not record score event', err)
+  }
+}
+
 async function confirmArrival() {
   state.checking = true
   state.statusMessage = tm('checking')
@@ -597,6 +684,7 @@ async function confirmArrival() {
 
     state.pendingLetter = json.letter
     pushNextLocation(json.next_location)
+    await recordProgressEvent(SCORE_EVENT_TYPES.ARRIVAL_CONFIRMED)
     state.statusMessage = tm('reached', { name: state.route[state.currentLocationIndex].name })
     saveSession()
   } catch {
@@ -636,27 +724,24 @@ async function submitAnswer() {
     if (!res.ok) throw new Error(json.error ?? res.statusText)
 
     if (json.correct) {
+      const attemptNumber = state.answerAttempts + 1
+      const answerTimeMs = state.questionStartedAt > 0
+        ? Math.max(0, Date.now() - state.questionStartedAt)
+        : 0
       state.pendingQuestion = false
       state.answerAttempts = 0
+      state.questionStartedAt = 0
       state.pendingLetter = json.letter
       pushNextLocation(json.next_location)
+      await recordProgressEvent(SCORE_EVENT_TYPES.ARRIVAL_CONFIRMED)
+      await recordProgressEvent(SCORE_EVENT_TYPES.ANSWER_CORRECT, {
+        attempt_number: attemptNumber,
+        answer_time_ms: answerTimeMs,
+      })
       saveSession()
     } else {
       state.answerAttempts += 1
-      const limit = currentTarget.max_attempts || 0
-      if (limit > 0 && state.answerAttempts >= limit) {
-        state.pendingQuestion = false
-        state.answerWrong = false
-        state.answerAttempts = 0
-        state.pendingLetter = null
-        state.collectedLetters = []
-        state.currentLocationIndex = 0
-        state.lastLetterGrantedAt = 0
-        state.statusMessage = tm('tooManyWrongAnswers')
-        saveSession()
-      } else {
-        state.answerWrong = true
-      }
+      state.answerWrong = true
     }
   } catch {
     state.serverError = true
@@ -668,11 +753,10 @@ async function submitAnswer() {
   updateUi()
 }
 
-function confirmLetter() {
-  if (!state.pendingLetter) return
-
-  state.collectedLetters.push(state.pendingLetter)
+function completeCurrentLocation(letter = null) {
+  if (letter) state.collectedLetters.push(letter)
   state.pendingLetter = null
+  state.questionStartedAt = 0
   state.currentLocationIndex += 1
   state.lastDistanceToTarget = null
 
@@ -688,9 +772,14 @@ function confirmLetter() {
       clearSession()
       try {
         sessionStorage.setItem('letter-quest-feedback', JSON.stringify({
+          gameId: state.gameId,
           slug,
           displayName: state.displayName,
           letters: state.collectedLetters,
+          playerId: state.playerId,
+          score: state.score,
+          totalAnswerTimeMs: state.totalAnswerTimeMs,
+          playerSessionId: state.playerSessionId,
           logoUrl: els.gameLogo?.src || '',
           requiresPayment: state.requiresPayment,
           paymentToken: state.paymentToken,
@@ -706,6 +795,51 @@ function confirmLetter() {
   updateUi()
 }
 
+function confirmLetter() {
+  if (!state.pendingLetter) return
+  completeCurrentLocation(state.pendingLetter)
+}
+
+async function skipQuestion() {
+  const currentTarget = state.route[state.currentLocationIndex]
+  if (!state.pendingQuestion || !currentTarget || state.checking) return
+
+  state.answerWrong = false
+  state.serverError = false
+  state.checking = true
+  state.statusMessage = tm('checking')
+  updateUi()
+
+  try {
+    const res = await fetch(await edgeFunctionUrl('confirm-arrival'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({
+        route_id: state.currentRouteId,
+        location_index: state.currentLocationIndex,
+        payment_token: state.requiresPayment ? state.paymentToken : null,
+      }),
+    })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error ?? res.statusText)
+
+    state.pendingQuestion = false
+    state.answerAttempts = 0
+    state.questionStartedAt = 0
+    pushNextLocation(json.next_location)
+    await recordProgressEvent(SCORE_EVENT_TYPES.ARRIVAL_CONFIRMED)
+    await recordProgressEvent(SCORE_EVENT_TYPES.QUESTION_SKIPPED)
+    state.statusMessage = tm('questionSkippedPenalty')
+    completeCurrentLocation(null)
+  } catch {
+    state.serverError = true
+    state.statusMessage = tm('serverError')
+  } finally {
+    state.checking = false
+  }
+  updateUi()
+}
+
 async function startNextRoute() {
   state.currentRouteIndex += 1
   const nextRoute = state.gameRoutes[state.currentRouteIndex]
@@ -715,6 +849,7 @@ async function startNextRoute() {
   state.lastLetterGrantedAt = 0
   state.routeComplete = false
   state.lastDistanceToTarget = null
+  state.questionStartedAt = 0
   state.checking = true
   state.statusMessage = tm('checking')
   updateUi()
@@ -785,11 +920,19 @@ async function loadGame() {
   updateUi()
 
   try {
-    const game = await fetchGameForPlay(slug)
+    const game = await fetchGameForPlay(slug);
+
     if (!game || game.routes.length === 0) {
-      state.configStatus = tm('gameNotFound', { slug })
-      state.statusMessage = tm('tapToBegin')
+      state.configStatus = tm('gameNotFound', { slug });
+      state.statusMessage = tm('tapToBegin');
     } else {
+      // Load custom game styles from database
+      await loadGameStyles(game.id);
+      state.gameId = game.id;
+      state.playerId = getPlayerId(slug)
+      const freshPlaySessionId = createPlaySessionId()
+      state.playerSessionId = freshPlaySessionId
+
       state.requiresPayment = Boolean(game.requires_payment)
       state.priceInCents = Number(game.price_in_cents) || 0
       state.paymentReady = !state.requiresPayment
@@ -827,6 +970,12 @@ async function loadGame() {
         )
         state.routeComplete = saved.routeComplete ?? false
         state.lastLetterGrantedAt = saved.lastLetterGrantedAt ?? 0
+        state.playerId = saved.playerId || state.playerId
+        state.playerSessionId = saved.playerSessionId || freshPlaySessionId
+        state.score = Number(saved.score) || 0
+        state.lastScoreDelta = Number(saved.lastScoreDelta) || 0
+        state.totalAnswerTimeMs = Number(saved.totalAnswerTimeMs) || 0
+        state.questionStartedAt = saved.questionStartedAt ?? 0
         state.statusMessage = tm('sessionRestored')
       } else {
         state.gameRoutes = game.routes
@@ -839,6 +988,11 @@ async function loadGame() {
         state.pendingLetter = null
         state.lastLetterGrantedAt = 0
         state.routeComplete = false
+        state.playerSessionId = freshPlaySessionId
+        state.score = 0
+        state.lastScoreDelta = 0
+        state.totalAnswerTimeMs = 0
+        state.questionStartedAt = 0
         state.statusMessage = tm('tapToBegin')
       }
 
@@ -892,6 +1046,7 @@ if (!slug) {
   els.confirmLetter.addEventListener('click', confirmLetter)
   els.nextRoute.addEventListener('click', startNextRoute)
   els.submitAnswer.addEventListener('click', submitAnswer)
+  els.skipQuestion.addEventListener('click', skipQuestion)
   els.answerInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAnswer() })
 
 

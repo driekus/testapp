@@ -1,8 +1,53 @@
 :root {
   color-scheme: light dark;
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-family: var(--font-family, Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif);
   line-height: 1.5;
+
+  /* Primary colors */
+  --primary-color: #2f7dff;
+  --primary-text-color: #ffffff;
+  --primary-hover-color: #1e5ecf;
+
+  /* Background & text */
+  --bg-color: #f5f7fb;
+  --text-color: #1f2937;
+  --text-muted-color: #6b7280;
+  --text-hint-color: #4b5563;
+
+  /* Cards & borders */
+  --card-bg-color: #ffffff;
+  --card-border-color: #d9e2ef;
+
+  /* Accents */
+  --accent-color-teal: #0f766e;
+  --accent-color-amber: #fef3c7;
+  --accent-text-amber: #92400e;
+  --accent-bg-blue: #f0f5ff;
+  --accent-border-blue: #c3d4f7;
+  --accent-text-blue: #1d4ed8;
+
+  /* Inputs */
+  --input-border-color: #bcccdc;
+  --input-bg-color: #ffffff;
+  --input-text-color: #1f2937;
+
+  /* Dark mode */
+  --dark-bg-color: #0f172a;
+  --dark-text-color: #e5e7eb;
+  --dark-card-bg-color: #111827;
+  --dark-card-border-color: #374151;
+  --dark-input-bg-color: #0b1220;
+  --dark-input-border-color: #334155;
+  --dark-accent-bg-blue: #1e2d4a;
+  --dark-accent-border-blue: #3b5a9a;
+  --dark-accent-text-blue: #93c5fd;
+
+  /* Spacing & borders */
+  --border-radius-sm: 8px;
+  --border-radius-md: 10px;
+  --border-radius-lg: 12px;
 }
+
 
 * {
   box-sizing: border-box;
@@ -10,8 +55,8 @@
 
 body {
   margin: 0;
-  background: #f5f7fb;
-  color: #1f2937;
+  background: var(--bg-color);
+  color: var(--text-color);
 }
 
 #app {
@@ -43,28 +88,28 @@ h2 {
 }
 
 .hint {
-  color: #4b5563;
+  color: var(--text-hint-color);
   margin-bottom: 4px;
 }
 
 .admin-link {
   justify-self: start;
-  color: #2f7dff;
+  color: var(--primary-color);
   text-decoration: none;
   font-weight: 600;
 }
 
 .card {
-  background: #ffffff;
-  border: 1px solid #d9e2ef;
-  border-radius: 12px;
+  background: var(--card-bg-color);
+  border: 1px solid var(--card-border-color);
+  border-radius: var(--border-radius-lg);
   padding: 14px;
   display: grid;
   gap: 6px;
 }
 
 .muted {
-  color: #6b7280;
+  color: var(--text-muted-color);
   font-size: 0.95rem;
 }
 
@@ -77,8 +122,28 @@ h2 {
   letter-spacing: 0.18rem;
 }
 
+.score-total {
+  font-weight: 700;
+  color: var(--accent-text-blue);
+}
+
+.score-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 8px 12px;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--accent-border-blue);
+  background: var(--accent-bg-blue);
+  color: var(--accent-text-blue);
+  font-weight: 700;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
 .pending {
-  color: #0f766e;
+  color: var(--accent-color-teal);
   font-weight: 700;
 }
 
@@ -100,9 +165,11 @@ input[type='text'],
 input[type='tel'] {
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid #bcccdc;
-  border-radius: 8px;
+  border: 1px solid var(--input-border-color);
+  border-radius: var(--border-radius-sm);
   font-size: 0.95rem;
+  background: var(--input-bg-color);
+  color: var(--input-text-color);
 }
 
 .toggle-row {
@@ -119,8 +186,8 @@ input[type='tel'] {
 
 .map-embed {
   width: 100%;
-  border: 1px solid #d9e2ef;
-  border-radius: 10px;
+  border: 1px solid var(--card-border-color);
+  border-radius: var(--border-radius-md);
   min-height: 260px;
 }
 
@@ -131,9 +198,11 @@ input[type='tel'] {
 #answer-input {
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid #bcccdc;
-  border-radius: 8px;
+  border: 1px solid var(--input-border-color);
+  border-radius: var(--border-radius-sm);
   font-size: 0.95rem;
+  background: var(--input-bg-color);
+  color: var(--input-text-color);
 }
 
 .answer-feedback {
@@ -147,7 +216,7 @@ input[type='tel'] {
   max-height: 100px;
   max-width: 240px;
   object-fit: contain;
-  border-radius: 10px;
+  border-radius: var(--border-radius-md);
   margin: 0 auto 4px;
 }
 
@@ -155,18 +224,10 @@ input[type='tel'] {
 .location-description {
   font-style: italic;
   color: #374151;
-  background: #f0f5ff;
-  border: 1px solid #c3d4f7;
-  border-radius: 8px;
+  background: var(--accent-bg-blue);
+  border: 1px solid var(--accent-border-blue);
+  border-radius: var(--border-radius-sm);
   padding: 8px 12px;
-}
-
-@media (prefers-color-scheme: dark) {
-  .location-description {
-    color: #d1d5db;
-    background: #1e2d4a;
-    border-color: #3b5a9a;
-  }
 }
 
 /* Location image (shown instead of distance when a photo hint is set) */
@@ -174,16 +235,16 @@ input[type='tel'] {
   width: 100%;
   max-height: 280px;
   object-fit: cover;
-  border-radius: 10px;
-  border: 1px solid #d9e2ef;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--card-border-color);
   margin-top: 4px;
 }
 
 /* Route badge */
 .route-badge {
   display: inline-block;
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: var(--accent-bg-blue);
+  color: var(--accent-text-blue);
   font-size: 0.82rem;
   font-weight: 600;
   padding: 3px 10px;
@@ -203,10 +264,10 @@ input[type='tel'] {
   align-items: center;
   gap: 10px;
   padding: 14px 16px;
-  background: #f0f5ff;
-  border: 1px solid #c3d4f7;
-  border-radius: 10px;
-  color: #1d4ed8;
+  background: var(--accent-bg-blue);
+  border: 1px solid var(--accent-border-blue);
+  border-radius: var(--border-radius-md);
+  color: var(--accent-text-blue);
   font-weight: 600;
   font-size: 1.05rem;
   text-decoration: none;
@@ -217,8 +278,8 @@ input[type='tel'] {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--accent-color-amber);
+  color: var(--accent-text-amber);
   font-size: 0.82rem;
   font-weight: 600;
   padding: 3px 10px;
@@ -227,23 +288,6 @@ input[type='tel'] {
 
 .game-link:hover {
   background: #dce9ff;
-}
-
-@media (prefers-color-scheme: dark) {
-  .game-link {
-    background: #1e2d4a;
-    border-color: #3b5a9a;
-    color: #93c5fd;
-  }
-
-  .game-link:hover {
-    background: #263b5e;
-  }
-
-  .paid-badge {
-    background: #451a03;
-    color: #fcd34d;
-  }
 }
 
 button {
@@ -266,6 +310,25 @@ button {
   text-decoration: none;
 }
 
+.scoreboard-list {
+  display: grid;
+  gap: 8px;
+}
+
+.score-row {
+  padding: 10px 12px;
+  border: 1px solid var(--accent-border-blue);
+  border-radius: var(--border-radius-sm);
+  background: var(--accent-bg-blue);
+  color: var(--accent-text-blue);
+  font-weight: 600;
+}
+
+button:hover {
+  border-color: #1e5ecf;
+  background: #1e5ecf;
+}
+
 button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -276,38 +339,46 @@ button.ghost {
   color: #2f7dff;
 }
 
+button.ghost:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #1e5ecf;
+  border-color: #1e5ecf;
+}
+
 textarea {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #bcccdc;
-  border-radius: 8px;
+  border: 1px solid var(--input-border-color);
+  border-radius: var(--border-radius-sm);
   font-size: 0.95rem;
   font-family: inherit;
   line-height: 1.5;
   resize: vertical;
+  background: var(--input-bg-color);
+  color: var(--input-text-color);
 }
 
 @media (prefers-color-scheme: dark) {
   textarea {
-    background: #0b1220;
-    border-color: #334155;
-    color: #e5e7eb;
+    background: var(--dark-input-bg-color);
+    border-color: var(--dark-input-border-color);
+    color: var(--dark-text-color);
   }
 }
 
 @media (prefers-color-scheme: dark) {
   body {
-    background: #0f172a;
-    color: #e5e7eb;
+    background: var(--dark-bg-color);
+    color: var(--dark-text-color);
   }
 
   .card {
-    background: #111827;
-    border-color: #374151;
+    background: var(--dark-card-bg-color);
+    border-color: var(--dark-card-border-color);
   }
 
   .map-embed {
-    border-color: #374151;
+    border-color: var(--dark-card-border-color);
   }
 
   .hint,
@@ -319,8 +390,46 @@ textarea {
   input[type='password'],
   input[type='text'],
   input[type='tel'] {
-    background: #0b1220;
-    border-color: #334155;
-    color: #e5e7eb;
+    background: var(--dark-input-bg-color);
+    border-color: var(--dark-input-border-color);
+    color: var(--dark-text-color);
+  }
+
+  .location-description {
+    color: var(--dark-text-color);
+    background: var(--dark-accent-bg-blue);
+    border-color: var(--dark-accent-border-blue);
+  }
+
+  .location-image {
+    border-color: var(--dark-card-border-color);
+  }
+
+  .game-link {
+    background: var(--dark-accent-bg-blue);
+    border-color: var(--dark-accent-border-blue);
+    color: var(--dark-accent-text-blue);
+  }
+
+  .game-link:hover {
+    background: #263b5e;
+  }
+
+  .score-row {
+    background: var(--dark-accent-bg-blue);
+    border-color: var(--dark-accent-border-blue);
+    color: var(--dark-accent-text-blue);
+  }
+
+  .score-toast {
+    background: var(--dark-accent-bg-blue);
+    border-color: var(--dark-accent-border-blue);
+    color: var(--dark-accent-text-blue);
+  }
+
+  .paid-badge {
+    background: #451a03;
+    color: #fcd34d;
   }
 }
+
