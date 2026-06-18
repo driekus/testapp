@@ -90,6 +90,8 @@ const winnerConfirmYes = document.querySelector('#winner-confirm-yes')
 const winnerConfirmNo = document.querySelector('#winner-confirm-no')
 let playedMarked = false
 let allowPageExit = false
+let leaveConfirmedWithoutSubmit = false
+let feedbackSubmitted = false
 let winnerSaved = (() => {
   if (!WINNER_SAVED_KEY) return false
   try {
@@ -185,13 +187,28 @@ function hasUnsavedFormInput() {
   )
 }
 
+function shouldBlockLeaving() {
+  if (allowPageExit) return false
+  if (feedbackSubmitted) return false
+  if (leaveConfirmedWithoutSubmit) return false
+  return true
+}
+
+async function confirmLeaveWithoutSubmit() {
+  return window.confirm(tm('feedbackLeaveEmptyConfirm'))
+}
+
 async function confirmLeaveWithUnsavedInput() {
-  if (!hasUnsavedFormInput()) return true
-  return window.confirm(tm('feedbackLeaveConfirm'))
+  if (!shouldBlockLeaving()) return true
+  const confirmed = hasUnsavedFormInput()
+    ? window.confirm(tm('feedbackLeaveConfirm'))
+    : await confirmLeaveWithoutSubmit()
+  if (confirmed) leaveConfirmedWithoutSubmit = true
+  return confirmed
 }
 
 window.addEventListener('beforeunload', (event) => {
-  if (allowPageExit || !hasUnsavedFormInput()) return
+  if (!shouldBlockLeaving()) return
   event.preventDefault()
   event.returnValue = ''
 })
@@ -262,6 +279,7 @@ skipBtn.addEventListener('click', async () => {
   saveWinnerBtn.disabled = true
   try {
     await markPlayedIfNeeded()
+    feedbackSubmitted = true
     clearDraft()
     allowPageExit = true
   } catch {
@@ -292,6 +310,7 @@ submitBtn.addEventListener('click', async () => {
     const json = await res.json()
     if (!res.ok) throw new Error(json.error ?? res.statusText)
     await markPlayedIfNeeded()
+    feedbackSubmitted = true
     clearDraft()
     allowPageExit = true
     goToGames()
