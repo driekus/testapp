@@ -9,14 +9,25 @@ export const SUPABASE_URL = supabaseUrl ?? '';
 export const SUPABASE_ANON_KEY = supabaseAnonKey ?? '';
 
 export const supabase = hasSupabaseConfig ? createClient(supabaseUrl, supabaseAnonKey) : null;
+let runtimeSupabase = supabase;
+
+/**
+ * Override Supabase client for tests.
+ * @param {{ supabase?: any }} deps
+ */
+export function setSupabaseClientRuntimeDeps(deps = {}) {
+  if (Object.prototype.hasOwnProperty.call(deps, 'supabase')) {
+    runtimeSupabase = deps.supabase;
+  }
+}
 
 export async function getCurrentUser() {
-  if (!supabase) {
+  if (!runtimeSupabase) {
     return null;
   }
 
   // getSession() never throws when there is no session — it simply returns null.
-  const { data, error } = await supabase.auth.getSession();
+  const { data, error } = await runtimeSupabase.auth.getSession();
   if (error) {
     throw error;
   }
@@ -25,44 +36,44 @@ export async function getCurrentUser() {
 }
 
 export async function signInWithPassword(email, password) {
-  if (!supabase) {
+  if (!runtimeSupabase) {
     throw new Error('Supabase env vars are missing.');
   }
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await runtimeSupabase.auth.signInWithPassword({ email, password });
   if (error) {
     throw error;
   }
 }
 
 export async function signUpWithPassword(email, password) {
-  if (!supabase) {
+  if (!runtimeSupabase) {
     throw new Error('Supabase env vars are missing.');
   }
 
-  const { error } = await supabase.auth.signUp({ email, password });
+  const { error } = await runtimeSupabase.auth.signUp({ email, password });
   if (error) {
     throw error;
   }
 }
 
 export async function signOutUser() {
-  if (!supabase) {
+  if (!runtimeSupabase) {
     return;
   }
 
-  const { error } = await supabase.auth.signOut();
+  const { error } = await runtimeSupabase.auth.signOut();
   if (error) {
     throw error;
   }
 }
 
 export async function signInWithGitHub(redirectTo) {
-  if (!supabase) {
+  if (!runtimeSupabase) {
     throw new Error('Supabase env vars are missing.');
   }
 
-  const { error } = await supabase.auth.signInWithOAuth({
+  const { error } = await runtimeSupabase.auth.signInWithOAuth({
     provider: 'github',
     options: redirectTo ? { redirectTo } : undefined,
   });

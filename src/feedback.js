@@ -4,28 +4,26 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient.js';
 import { loadGameStyles } from './gameStyleService.js';
 import { markPlayed } from './payment.js';
 import { buildRankingsUrl, setScoreDisplayName, setScoreDisplayNameBySession } from './scoreService.js';
+import { buildFeedbackContext, buildScoreNameOperation, parseFeedbackSession } from './feedbackCore.js';
 
 const language = getLanguage();
 const tm = (key, params) => t(language, 'main', key, params);
 
 // ─── Session data ─────────────────────────────────────────────────────────────
 
-const data = (() => {
-  try {
-    const raw = sessionStorage.getItem('letter-quest-feedback');
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-})();
+const data = parseFeedbackSession(sessionStorage);
 
-const gameId          = data?.gameId || '';
-const slug            = data?.slug || '';
-const requiresPayment = Boolean(data?.requiresPayment);
-const paymentToken    = data?.paymentToken || null;
-const finalScore      = Number(data?.score) || 0;
-const totalAnswerTimeMs = Number(data?.totalAnswerTimeMs) || 0;
-const playerId        = data?.playerId || '';
-const winnerName      = String(data?.winnerName ?? '').trim();
-const winnerPhone     = String(data?.winnerPhone ?? '').trim();
+const {
+  gameId,
+  slug,
+  requiresPayment,
+  paymentToken,
+  finalScore,
+  totalAnswerTimeMs,
+  playerId,
+  winnerName,
+  winnerPhone,
+} = buildFeedbackContext(data);
 
 // ─── Load game styles ─────────────────────────────────────────────────────────
 
@@ -82,22 +80,20 @@ async function doSetScoreDisplayName() {
   // Set display name for ALL games (both paid and free).
   // For paid games: use player_session_id (unique per play session) to avoid overwriting other plays
   // For free games: use player_id (one name per player per game)
-  const name = winnerName;  // already set correctly: paid uses winner name, free uses player name
-  if (!name || !gameId) {
-    return;
-  }
+  const name = winnerName;
+  const op = buildScoreNameOperation({
+    requiresPayment,
+    name,
+    gameId,
+    playerId,
+    playerSessionId: data?.playerSessionId,
+    paymentToken,
+  });
+  if (!op) return;
 
   try {
-    if (requiresPayment) {
-      // Paid game: set by session to allow different names per payment
-      const playerSessionId = data?.playerSessionId;
-      if (!playerSessionId) return;
-      await setScoreDisplayNameBySession({ game_id: gameId, player_session_id: playerSessionId, display_name: name, payment_token: paymentToken });
-    } else {
-      // Free game: set by player_id (one name per player)
-      if (!playerId) return;
-      await setScoreDisplayName({ game_id: gameId, player_id: playerId, display_name: name });
-    }
+    if (op.mode === 'session') await setScoreDisplayNameBySession(op.payload);
+    else await setScoreDisplayName(op.payload);
   } catch (err) {
     console.warn('feedback: could not set display name', err);
   }

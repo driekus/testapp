@@ -4,14 +4,14 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient.js';
 import { getStoredPaymentToken, clearStoredPaymentToken, verifyPaymentToken } from './payment.js';
 import { loadGameStyles } from './gameStyleService.js';
 import { fetchGameForPlay } from './userConfigService.js';
+import { buildWinnerSavePayload, getWinnerSlug, validateWinnerFields } from './winnerCore.js';
 
 const language = getLanguage();
 const tm = (key, params) => t(language, 'main', key, params);
 
 // ─── Resolve slug ────────────────────────────────────────────────────────────
 
-const params = new URLSearchParams(window.location.search);
-const slug = params.get('slug') || '';
+const slug = getWinnerSlug(window.location.search);
 
 if (!slug) {
   window.location.replace('/');
@@ -90,10 +90,11 @@ saveBtn.addEventListener('click', async () => {
   const name = nameInput.value.trim();
   const phone = phoneInput.value.trim();
 
-  if (!name || !phone) {
+  const validation = validateWinnerFields(name, phone);
+  if (!validation.valid) {
     statusEl.textContent = tm('winnerRequired');
     statusEl.classList.remove('hidden');
-    if (!name) nameInput.focus();
+    if (validation.firstMissing === 'name') nameInput.focus();
     else phoneInput.focus();
     return;
   }
@@ -109,12 +110,7 @@ saveBtn.addEventListener('click', async () => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       },
-      body: JSON.stringify({
-        payment_token: paymentToken,
-        game_slug: slug,
-        player_name: name,
-        player_phone: phone,
-      }),
+      body: JSON.stringify(buildWinnerSavePayload({ paymentToken, slug, name, phone })),
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? res.statusText);
