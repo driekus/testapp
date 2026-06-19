@@ -22,6 +22,10 @@ import {
   storePaymentToken,
   verifyPaymentToken,
 } from './payment.js';
+import { createUiController } from './main/ui.js';
+import { createSessionStore } from './main/session.js';
+import { resolvePaymentAccess } from './main/paymentGate.js';
+import { createLocationTracking } from './main/locationTracking.js';
 
 const LOCATION_RADIUS_METERS = 5;
 const MAX_ALLOWED_GPS_ACCURACY_METERS = 11;
@@ -139,291 +143,27 @@ async function showLobby() {
 }
 
 
-function getEls() {
-  return {
-    gameTitle: document.querySelector('#game-title'),
-    paidBadge: document.querySelector('#paid-badge'),
-    configStatus: document.querySelector('#config-status'),
-    cardPayment: document.querySelector('#card-payment'),
-    paymentMessage: document.querySelector('#payment-message'),
-    payAndPlay: document.querySelector('#pay-and-play'),
-    cardName: document.querySelector('#card-name'),
-    playerNameInput: document.querySelector('#player-name-input'),
-    startWithName: document.querySelector('#start-with-name'),
-    cardTarget: document.querySelector('#card-target'),
-    cardProgress: document.querySelector('#card-progress'),
-    cardLocation: document.querySelector('#card-location'),
-    cardStatus: document.querySelector('#card-status'),
-    cardQuestion: document.querySelector('#card-question'),
-    questionText: document.querySelector('#question-text'),
-    answerInput: document.querySelector('#answer-input'),
-    answerFeedback: document.querySelector('#answer-feedback'),
-    submitAnswer: document.querySelector('#submit-answer'),
-    skipQuestion: document.querySelector('#skip-question'),
-    routeBadge: document.querySelector('#route-badge'),
-    targetName: document.querySelector('#target-name'),
-    gameLogo: document.querySelector('#game-logo'),
-    locationImage: document.querySelector('#location-image'),
-    locationDescription: document.querySelector('#location-description'),
-    distance: document.querySelector('#distance'),
-    progress: document.querySelector('#progress'),
-    letters: document.querySelector('#letters'),
-    scoreTotal: document.querySelector('#score-total'),
-    scoreToast: document.querySelector('#score-toast'),
-    status: document.querySelector('#status'),
-    pendingLetter: document.querySelector('#pending-letter'),
-    rankingsLink: document.querySelector('#rankings-link'),
-    enableLocation: document.querySelector('#enable-location'),
-    confirmLetter: document.querySelector('#confirm-letter'),
-    nextRoute: document.querySelector('#next-route'),
-  };
-}
+const uiController = createUiController({
+  state,
+  tm,
+  formatEuro,
+  buildRankingsUrl,
+  slug,
+  distanceMeters,
+  constants: {
+    LOCATION_RADIUS_METERS,
+    MAX_ALLOWED_GPS_ACCURACY_METERS,
+  },
+});
 
 let els = {};
-let scoreToastTimer = null;
-
-function showScoreToast(points) {
-  if (!els.scoreToast || !Number.isFinite(points) || points === 0) return;
-
-  els.scoreToast.textContent = points > 0
-    ? tm('scoreLastGain', { points })
-    : tm('scoreLastPenalty', { points: Math.abs(points) });
-  els.scoreToast.classList.remove('hidden');
-  if (scoreToastTimer) clearTimeout(scoreToastTimer);
-  scoreToastTimer = setTimeout(() => {
-    els.scoreToast.classList.add('hidden');
-  }, 2200);
-}
-
-function updatePaidBadge() {
-  if (!els.paidBadge) return;
-  if (!state.requiresPayment) {
-    els.paidBadge.classList.add('hidden');
-    return;
-  }
-  els.paidBadge.textContent = `\uD83D\uDD12 ${tm('paidGame')} - ${formatEuro(state.priceInCents)}`;
-  els.paidBadge.classList.remove('hidden');
-}
-
-function showPaymentCard(messageKey, buttonKey = 'payButton', hideButton = false) {
-  if (!els.cardPayment) return;
-  els.cardPayment.classList.remove('hidden');
-  els.paymentMessage.textContent = tm(messageKey);
-  els.payAndPlay.textContent = tm(buttonKey);
-  els.payAndPlay.disabled = false;
-  els.payAndPlay.classList.toggle('hidden', hideButton);
-}
-
-function updateUi() {
-  const totalRoutes = state.gameRoutes.length;
-  const currentRouteData = state.gameRoutes[state.currentRouteIndex];
-  const currentTarget = state.route[state.currentLocationIndex];
-
-  updatePaidBadge();
-  if (els.scoreTotal) {
-    els.scoreTotal.textContent = tm('scoreTotal', { score: state.score });
-  }
-
-  // Avoid card flicker before game type is resolved (free vs paid).
-  if (!state.gameId) {
-    els.cardPayment.classList.add('hidden');
-    els.cardName?.classList.add('hidden');
-    els.cardTarget.classList.add('hidden');
-    els.cardProgress.classList.add('hidden');
-    els.cardLocation.classList.add('hidden');
-    els.cardStatus.classList.add('hidden');
-    els.cardQuestion.classList.add('hidden');
-    return;
-  }
-
-  if (state.requiresPayment && !state.paymentReady) {
-    els.cardPayment.classList.remove('hidden');
-    els.cardTarget.classList.add('hidden');
-    els.cardProgress.classList.add('hidden');
-    els.cardLocation.classList.add('hidden');
-    els.cardStatus.classList.add('hidden');
-    els.cardQuestion.classList.add('hidden');
-    return;
-  }
-
-  els.cardPayment.classList.add('hidden');
-
-  // For free games: show the optional name prompt before enabling location
-  if (state.gameId && !state.requiresPayment && !state.nameConfirmed) {
-    els.cardName?.classList.remove('hidden');
-    els.cardLocation.classList.add('hidden');
-    els.cardTarget.classList.add('hidden');
-    els.cardProgress.classList.add('hidden');
-    els.cardStatus.classList.add('hidden');
-    els.cardQuestion.classList.add('hidden');
-    return;
-  }
-  els.cardName?.classList.add('hidden');
-
-  // When location is not yet enabled, show only the location card
-  const locationActive = state.geoWatchId !== null;
-  els.cardLocation.classList.toggle('hidden', locationActive);
-  els.cardTarget.classList.toggle('hidden', !locationActive);
-  els.cardProgress.classList.toggle('hidden', !locationActive);
-  els.cardStatus.classList.toggle('hidden', !locationActive);
-
-  if (!locationActive) return;
-
-  // While a question must be answered, show only the question card
-  if (state.pendingQuestion) {
-    const currentTarget = state.route[state.currentLocationIndex];
-    els.cardQuestion.classList.remove('hidden');
-    els.cardTarget.classList.add('hidden');
-    els.cardProgress.classList.add('hidden');
-    els.cardStatus.classList.add('hidden');
-    els.questionText.textContent = currentTarget?.question ?? '';
-    els.skipQuestion.textContent = tm('continueWithoutAnswer');
-    els.skipQuestion.disabled = state.checking;
-    els.answerFeedback.classList.toggle('hidden', !state.answerWrong);
-    if (state.answerWrong) {
-      const limit = currentTarget?.max_attempts || 0;
-      if (limit > 0 && state.answerAttempts >= limit) {
-        els.answerFeedback.textContent = tm('maxAttemptsReached', { max: limit });
-      } else {
-        els.answerFeedback.textContent = limit > 0
-          ? tm('answerWrongWithLimit', { attempts: state.answerAttempts, max: limit })
-          : tm('answerWrong');
-      }
-    }
-    return;
-  }
-
-  els.cardQuestion.classList.add('hidden');
-
-  // Show only the status card when a letter is pending confirmation
-  const focusStatus = !!state.pendingLetter && !state.routeComplete;
-  els.cardTarget.classList.toggle('hidden', focusStatus);
-  els.cardProgress.classList.toggle('hidden', focusStatus);
-
-  if (els.gameTitle) els.gameTitle.textContent = state.displayName || tm('title');
-  els.configStatus.textContent = state.configStatus;
-  if (els.rankingsLink) {
-    const showRankings = Boolean(state.gameId);
-    els.rankingsLink.href = buildRankingsUrl(slug);
-    els.rankingsLink.textContent = tm('viewRankings');
-    els.rankingsLink.classList.toggle('hidden', !showRankings);
-  }
-
-  // Route badge: "Route 2 of 3"
-  if (totalRoutes > 1 && currentRouteData) {
-    els.routeBadge.textContent = tm('routeBadge', {
-      current: state.currentRouteIndex + 1,
-      total: totalRoutes,
-      name: currentRouteData.display_name,
-    });
-    els.routeBadge.classList.remove('hidden');
-  } else {
-    els.routeBadge.classList.add('hidden');
-  }
-
-  // All routes complete
-  if (state.currentRouteIndex >= totalRoutes && totalRoutes > 0) {
-    els.targetName.textContent = tm('allCompleted');
-    els.distance.textContent = '';
-    els.locationImage.classList.add('hidden');
-    els.progress.textContent = tm('greatJob');
-    els.pendingLetter.textContent = '';
-    els.confirmLetter.disabled = true;
-    els.nextRoute.classList.add('hidden');
-    els.status.textContent = state.statusMessage;
-    els.letters.textContent = `${tm('letters')}: ${state.collectedLetters.join(' ')}`;
-    return;
-  }
-
-  // Between routes — waiting for player to tap "start next route"
-  if (state.routeComplete) {
-    els.targetName.textContent = '';
-    els.distance.textContent = '';
-    els.confirmLetter.disabled = true;
-    els.nextRoute.classList.remove('hidden');
-    els.nextRoute.textContent = currentRouteData
-      ? tm('startNextRouteNamed', { name: currentRouteData.display_name })
-      : tm('startNextRoute');
-    els.status.textContent = state.statusMessage;
-    els.letters.textContent = `${tm('letters')}: ${state.collectedLetters.join(' ')}`;
-    els.progress.textContent = tm('routeCompletedProgress', {
-      done: state.currentRouteIndex,
-      total: totalRoutes,
-    });
-    return;
-  }
-
-  els.nextRoute.classList.add('hidden');
-
-  if (!currentTarget) {
-    els.targetName.textContent = tm('allCompleted');
-    els.distance.textContent = '';
-    els.progress.textContent = tm('greatJob');
-    els.pendingLetter.textContent = '';
-    els.confirmLetter.disabled = true;
-    els.status.textContent = state.statusMessage;
-    els.letters.textContent = `${tm('letters')}: ${state.collectedLetters.join(' ')}`;
-    return;
-  }
-
-  els.targetName.textContent = `${state.currentLocationIndex + 1}. ${currentTarget.name}`;
-  els.progress.textContent = tm('completed', {
-    count: state.currentLocationIndex,
-    routeTotal: state.route.length,
-    route: state.currentRouteIndex + 1,
-    total: totalRoutes,
-  });
-  els.letters.textContent = state.collectedLetters.length
-    ? `${tm('letters')}: ${state.collectedLetters.join(' ')}`
-    : tm('lettersEmpty');
-  els.status.textContent = state.statusMessage;
-  els.pendingLetter.textContent = state.pendingLetter
-    ? tm('pendingLetter', { letter: state.pendingLetter })
-    : '';
-  els.confirmLetter.disabled = !state.pendingLetter;
-
-  // Show image and/or description as hint, or distance — hints suppress distance
-  if (currentTarget.image_url) {
-    els.locationImage.src = currentTarget.image_url;
-    els.locationImage.classList.remove('hidden');
-  } else {
-    els.locationImage.classList.add('hidden');
-    els.locationImage.src = '';
-  }
-
-  if (currentTarget.description) {
-    els.locationDescription.textContent = currentTarget.description;
-    els.locationDescription.classList.remove('hidden');
-  } else {
-    els.locationDescription.classList.add('hidden');
-    els.locationDescription.textContent = '';
-  }
-
-  if (currentTarget.image_url || currentTarget.description) {
-    els.distance.textContent = '';
-  } else if (state.userPosition) {
-    const effectiveRadius = Math.min(
-      MAX_ALLOWED_GPS_ACCURACY_METERS,
-      Math.max(LOCATION_RADIUS_METERS, state.userPosition.accuracy),
-    );
-    const meters = Math.round(
-      distanceMeters(
-        state.userPosition.latitude,
-        state.userPosition.longitude,
-        currentTarget.lat,
-        currentTarget.lng,
-      ),
-    );
-    els.distance.textContent = tm('distanceLine', {
-      meters,
-      target: Math.round(effectiveRadius),
-      base: LOCATION_RADIUS_METERS,
-      accuracy: Math.round(state.userPosition.accuracy),
-    });
-  } else {
-    els.distance.textContent = tm('distanceUnknown');
-  }
-}
+const {
+  getEls,
+  setElements,
+  showScoreToast,
+  showPaymentCard,
+  updateUi,
+} = uiController;
 
 function pushNextLocation(next) {
   if (!next) return;
@@ -435,45 +175,15 @@ function pushNextLocation(next) {
 // ─── Session persistence ─────────────────────────────────────────────────────
 
 const SESSION_KEY = slug ? `letter-quest-session-${slug}` : null;
-
-function saveSession() {
-  if (!SESSION_KEY) return;
-  try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify({
-      v: 1,
-      currentRouteIndex: state.currentRouteIndex,
-      currentRouteId: state.currentRouteId,
-      currentLocationIndex: state.currentLocationIndex,
-      collectedLetters: state.collectedLetters,
-      pendingLetter: state.pendingLetter,
-      route: state.route,
-      gameRoutes: state.gameRoutes,
-      displayName: state.displayName,
-      routeComplete: state.routeComplete,
-      lastLetterGrantedAt: state.lastLetterGrantedAt,
-      playerId: state.playerId,
-      playerSessionId: state.playerSessionId,
-      playerDisplayName: state.playerDisplayName,
-      score: state.score,
-      lastScoreDelta: state.lastScoreDelta,
-      totalAnswerTimeMs: state.totalAnswerTimeMs,
-      questionStartedAt: state.questionStartedAt,
-    }));
-  } catch { /* storage full or unavailable */ }
-}
-
-function clearSession() {
-  if (!SESSION_KEY) return;
-  try { localStorage.removeItem(SESSION_KEY); } catch {}
-}
-
-function loadSavedSession() {
-  if (!SESSION_KEY) return null;
-  try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
+const {
+  saveSession,
+  clearSession,
+  loadSavedSession,
+} = createSessionStore({
+  sessionKey: SESSION_KEY,
+  storage: window.localStorage,
+  state,
+});
 
 // ─── Audio feedback ─────────────────────────────────────────────────────────
 
@@ -575,91 +285,23 @@ function checkArrival() {
   }
   updateUi();
 }
-
-function handleLocationSuccess(position) {
-  const candidate = {
-    latitude: position.coords.latitude,
-    longitude: position.coords.longitude,
-    accuracy: position.coords.accuracy,
-    timestamp: position.timestamp,
-  };
-
-  if (candidate.accuracy > MAX_ALLOWED_GPS_ACCURACY_METERS) {
-    state.statusMessage = tm('gpsTooLow', {
-      accuracy: Math.round(candidate.accuracy),
-      need: MAX_ALLOWED_GPS_ACCURACY_METERS,
-    });
-    updateUi();
-    return;
-  }
-
-  if (
-    state.lastTrustedPosition &&
-    isQuickJump(state.lastTrustedPosition, candidate, {
-      maxSpeedMetersPerSecond: MAX_SPEED_METERS_PER_SECOND,
-      maxJumpDistanceMeters: MAX_JUMP_DISTANCE_METERS,
-    })
-  ) {
-    state.statusMessage = tm('quickJump');
-    updateUi();
-    return;
-  }
-
-  state.userPosition = candidate;
-  state.lastTrustedPosition = candidate;
-
-  const currentTarget = state.route[state.currentLocationIndex];
-  if (currentTarget && !state.pendingLetter && !state.pendingQuestion && !state.routeComplete && !currentTarget.image_url && !currentTarget.description) {
-    const newDistance = distanceMeters(
-      candidate.latitude,
-      candidate.longitude,
-      currentTarget.lat,
-      currentTarget.lng,
-    );
-    if (state.lastDistanceToTarget !== null && newDistance > state.lastDistanceToTarget + 10) {
-      playDoubleBeep();
-    }
-    state.lastDistanceToTarget = newDistance;
-  }
-
-  checkArrival();
-  updateUi();
-}
-
-function startWatch(options, fallbackToBalanced) {
-  state.geoWatchId = navigator.geolocation.watchPosition(
-    handleLocationSuccess,
-    (error) => {
-      if (error.code === error.TIMEOUT && fallbackToBalanced) {
-        navigator.geolocation.clearWatch(state.geoWatchId);
-        state.geoWatchId = null;
-        state.statusMessage = tm('highAccTimeout');
-        updateUi();
-        startWatch({ enableHighAccuracy: false, maximumAge: 15000, timeout: BALANCED_TIMEOUT_MS }, false);
-        return;
-      }
-      state.statusMessage = tm('locationError', { message: error.message });
-      updateUi();
-    },
-    options,
-  );
-}
-
-function startLocationTracking() {
-  if (!navigator.geolocation) {
-    state.statusMessage = tm('geolocationUnsupported');
-    updateUi();
-    return;
-  }
-  if (state.geoWatchId !== null) {
-    state.statusMessage = tm('trackingActive');
-    updateUi();
-    return;
-  }
-  state.statusMessage = tm('requestingPermission');
-  updateUi();
-  startWatch({ enableHighAccuracy: true, maximumAge: 5000, timeout: HIGH_ACCURACY_TIMEOUT_MS }, true);
-}
+const { startLocationTracking } = createLocationTracking({
+  state,
+  tm,
+  updateUi,
+  checkArrival,
+  playDoubleBeep,
+  geolocation: navigator.geolocation,
+  isQuickJump,
+  distanceMeters,
+  constants: {
+    MAX_ALLOWED_GPS_ACCURACY_METERS,
+    MAX_SPEED_METERS_PER_SECOND,
+    MAX_JUMP_DISTANCE_METERS,
+    BALANCED_TIMEOUT_MS,
+    HIGH_ACCURACY_TIMEOUT_MS,
+  },
+});
 
 async function edgeFunctionUrl(name) {
   return `${SUPABASE_URL}/functions/v1/${name}`;
@@ -908,51 +550,6 @@ async function startNextRoute() {
   updateUi();
 }
 
-async function resolvePaymentAccess() {
-  state.paymentReady = false;
-  const params = new URLSearchParams(window.location.search);
-  const paymentRequestToken = params.get('payment_request_token');
-  const storedToken = getStoredPaymentToken(slug);
-  let alreadyPlayed = false;
-
-  updateUi();
-
-  if (storedToken) {
-    try {
-      const payment = await verifyPaymentToken(slug, storedToken);
-      if (payment.paid && payment.payment_token && !payment.played) {
-        state.paymentToken = payment.payment_token;
-        state.paymentReady = true;
-        return true;
-      }
-      alreadyPlayed = Boolean(payment.played);
-      clearStoredPaymentToken(slug);
-      state.paymentToken = null;
-    } catch {
-      clearStoredPaymentToken(slug);
-    }
-  }
-
-  if (paymentRequestToken) {
-    showPaymentCard('paymentPending', 'payButton', true);
-    try {
-      const payment = await pollUntilPaid(slug, paymentRequestToken, (token) => {
-        storePaymentToken(slug, token);
-      });
-      state.paymentToken = payment.payment_token;
-      state.paymentReady = true;
-      window.history.replaceState({}, '', `/${slug}`);
-      return true;
-    } catch {
-      showPaymentCard('payToPlay');
-      return false;
-    }
-  }
-
-  showPaymentCard(alreadyPlayed ? 'alreadyPlayed' : 'payToPlay', alreadyPlayed ? 'payAgain' : 'payButton');
-  return false;
-}
-
 // ─── Config loading ─────────────────────────────────────────────────────────
 
 async function loadGame() {
@@ -985,7 +582,20 @@ async function loadGame() {
       }
 
       if (state.requiresPayment) {
-        const canPlay = await resolvePaymentAccess();
+        const canPlay = await resolvePaymentAccess({
+          state,
+          slug,
+          windowRef: window,
+          updateUi,
+          showPaymentCard,
+          paymentApi: {
+            getStoredPaymentToken,
+            clearStoredPaymentToken,
+            verifyPaymentToken,
+            pollUntilPaid,
+            storePaymentToken,
+          },
+        });
         if (!canPlay) {
           state.configStatus = tm('configLoaded');
           updateUi();
@@ -1120,6 +730,7 @@ if (!slug) {
   gameUi.classList.remove('hidden');
 
   els = getEls();
+  setElements(els);
 
   els.enableLocation.addEventListener('click', startLocationTracking);
   els.payAndPlay.addEventListener('click', async () => {
