@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient.js';
 
 let runtimeSupabase = supabase;
-let runtimeDocument = document;
+let runtimeDocument = typeof document === 'undefined' ? null : document;
 
 /**
  * Override runtime dependencies (used by tests).
