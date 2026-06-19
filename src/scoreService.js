@@ -1,47 +1,47 @@
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from './supabaseClient.js'
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from './supabaseClient.js';
 
 export const SCORE_EVENT_TYPES = {
   LOCATION_FOUND: 'location_found',
   ARRIVAL_CONFIRMED: 'arrival_confirmed',
   ANSWER_CORRECT: 'answer_correct',
   QUESTION_SKIPPED: 'question_skipped',
-}
+};
 
 function createId() {
   return typeof crypto?.randomUUID === 'function'
     ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export function getPlayerId(slug) {
-  if (!slug) return ''
+  if (!slug) return '';
 
-  const key = `letter-quest-player-${slug}`
+  const key = `letter-quest-player-${slug}`;
   try {
-    const existing = localStorage.getItem(key)
-    if (existing) return existing
+    const existing = localStorage.getItem(key);
+    if (existing) return existing;
 
-    const created = createId()
-    localStorage.setItem(key, created)
-    return created
+    const created = createId();
+    localStorage.setItem(key, created);
+    return created;
   } catch {
-    return createId()
+    return createId();
   }
 }
 
 export function createPlaySessionId() {
-  return createId()
+  return createId();
 }
 
 export function buildRankingsUrl(slug) {
-  const params = new URLSearchParams()
-  if (slug) params.set('slug', slug)
-  const query = params.toString()
-  return query ? `/rankings.html?${query}` : '/rankings.html'
+  const params = new URLSearchParams();
+  if (slug) params.set('slug', slug);
+  const query = params.toString();
+  return query ? `/rankings.html?${query}` : '/rankings.html';
 }
 
 function scoreFunctionUrl(name) {
-  return `${SUPABASE_URL}/functions/v1/${name}`
+  return `${SUPABASE_URL}/functions/v1/${name}`;
 }
 
 async function callScoreFunction(name, payload) {
@@ -52,30 +52,30 @@ async function callScoreFunction(name, payload) {
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     },
     body: JSON.stringify(payload),
-  })
-  const json = await res.json()
-  if (!res.ok) throw new Error(json.error ?? res.statusText)
-  return json
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? res.statusText);
+  return json;
 }
 
 export function buildScoreEventKey(routeId, locationIndex, eventType) {
-  return `${routeId}:${locationIndex}:${eventType}`
+  return `${routeId}:${locationIndex}:${eventType}`;
 }
 
 export async function recordScoreEvent(payload) {
-  return callScoreFunction('record-score-event', payload)
+  return callScoreFunction('record-score-event', payload);
 }
 
 export async function fetchScoreboard(payload) {
-  return callScoreFunction('get-scoreboard', payload)
+  return callScoreFunction('get-scoreboard', payload);
 }
 
 export async function setScoreDisplayName(payload) {
-  return callScoreFunction('set-score-display-name', payload)
+  return callScoreFunction('set-score-display-name', payload);
 }
 
 export async function setScoreDisplayNameBySession(payload) {
-  return callScoreFunction('set-score-display-name-by-session', payload)
+  return callScoreFunction('set-score-display-name-by-session', payload);
 }
 
 

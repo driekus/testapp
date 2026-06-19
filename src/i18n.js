@@ -1,4 +1,4 @@
-const LANGUAGE_STORAGE_KEY = 'letter-quest-language'
+const LANGUAGE_STORAGE_KEY = 'letter-quest-language';
 
 const translations = {
   en: {
@@ -501,31 +501,31 @@ const translations = {
       euros: 'EUR',
     },
   },
-}
+};
 
 function interpolate(template, params = {}) {
-  return template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''))
+  return template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''));
 }
 
 export function getLanguage() {
-  const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY)
+  const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
   if (stored === 'en' || stored === 'nl') {
-    return stored
+    return stored;
   }
 
-  return 'nl'
+  return 'nl';
 }
 
 export function setLanguage(language) {
-  const normalized = language === 'nl' ? 'nl' : 'en'
-  localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized)
+  const normalized = language === 'nl' ? 'nl' : 'en';
+  localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
 }
 
 export function t(language, section, key, params = {}) {
-  const lang = language === 'nl' ? 'nl' : 'en'
-  const table = translations[lang]?.[section] || translations.en[section]
-  const template = table?.[key] || translations.en[section]?.[key] || key
-  return interpolate(template, params)
+  const lang = language === 'nl' ? 'nl' : 'en';
+  const table = translations[lang]?.[section] || translations.en[section];
+  const template = table?.[key] || translations.en[section]?.[key] || key;
+  return interpolate(template, params);
 }
 
 

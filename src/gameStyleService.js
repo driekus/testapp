@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient.js'
+import { supabase } from './supabaseClient.js';
 
 /**
  * Load custom CSS variables for a game from the database
@@ -7,8 +7,8 @@ import { supabase } from './supabaseClient.js'
  */
 export async function loadGameStyles(gameId) {
   if (!gameId) {
-    console.warn('gameStyleService: no gameId provided')
-    return
+    console.warn('gameStyleService: no gameId provided');
+    return;
   }
 
   try {
@@ -16,21 +16,21 @@ export async function loadGameStyles(gameId) {
       .from('game_styles')
       .select('*')
       .eq('game_id', gameId)
-      .maybeSingle()
+      .maybeSingle();
 
     if (error) {
-      console.error('gameStyleService: error fetching styles', error)
-      return
+      console.error('gameStyleService: error fetching styles', error);
+      return;
     }
 
     if (!data) {
-      console.log(`gameStyleService: no custom styles for game ${gameId}, using defaults`)
-      return
+      console.log(`gameStyleService: no custom styles for game ${gameId}, using defaults`);
+      return;
     }
 
-    applyCustomStyles(data)
+    applyCustomStyles(data);
   } catch (err) {
-    console.error('gameStyleService: unexpected error', err)
+    console.error('gameStyleService: unexpected error', err);
   }
 }
 
@@ -40,7 +40,7 @@ export async function loadGameStyles(gameId) {
  */
 function applyCustomStyles(styleData) {
 
-  const root = document.documentElement
+  const root = document.documentElement;
 
   // Map of database column names to CSS variable names
   const styleMapping = {
@@ -75,17 +75,17 @@ function applyCustomStyles(styleData) {
     border_radius_sm: '--border-radius-sm',
     border_radius_md: '--border-radius-md',
     border_radius_lg: '--border-radius-lg',
-  }
+  };
 
   // Apply each style that has a value
   for (const [dbColumn, cssVar] of Object.entries(styleMapping)) {
-    const value = styleData[dbColumn]
+    const value = styleData[dbColumn];
     if (value) {
-      root.style.setProperty(cssVar, value)
+      root.style.setProperty(cssVar, value);
     }
   }
 
-  console.log('gameStyleService: custom styles applied')
+  console.log('gameStyleService: custom styles applied');
 }
 
 /**
@@ -98,13 +98,13 @@ export async function createDefaultGameStyles(gameId) {
     .from('game_styles')
     .insert([{ game_id: gameId }])
     .select()
-    .single()
+    .single();
 
   if (error) {
-    console.error('gameStyleService: error creating default styles', error)
-    throw error
+    console.error('gameStyleService: error creating default styles', error);
+    throw error;
   }
 
-  return data
+  return data;
 }
 

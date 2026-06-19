@@ -1,24 +1,24 @@
 // @ts-nocheck
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
 type EventType = 'location_found' | 'arrival_confirmed' | 'answer_correct' | 'question_skipped'
 
 function answerPointsForAttempt(attemptNumber: number) {
-  if (attemptNumber <= 1) return 10
-  if (attemptNumber === 2) return 5
-  if (attemptNumber === 3) return 3
-  if (attemptNumber === 4) return 2
-  return 1
+  if (attemptNumber <= 1) return 10;
+  if (attemptNumber === 2) return 5;
+  if (attemptNumber === 3) return 3;
+  if (attemptNumber === 4) return 2;
+  return 1;
 }
 
 function timeBonus(answerTimeMs: number) {
-  if (answerTimeMs < 0 || answerTimeMs >= 60000) return 0
-  return Math.floor((60000 - answerTimeMs) / 1000)
+  if (answerTimeMs < 0 || answerTimeMs >= 60000) return 0;
+  return Math.floor((60000 - answerTimeMs) / 1000);
 }
 
 function calculateDelta(eventType: EventType, attemptNumber: number, answerTimeMs: number) {
@@ -30,7 +30,7 @@ function calculateDelta(eventType: EventType, attemptNumber: number, answerTimeM
       answeredDelta: 0,
       skippedDelta: 0,
       answerTimeDelta: 0,
-    }
+    };
   }
 
   if (eventType === 'arrival_confirmed') {
@@ -41,7 +41,7 @@ function calculateDelta(eventType: EventType, attemptNumber: number, answerTimeM
       answeredDelta: 0,
       skippedDelta: 0,
       answerTimeDelta: 0,
-    }
+    };
   }
 
   if (eventType === 'question_skipped') {
@@ -52,11 +52,11 @@ function calculateDelta(eventType: EventType, attemptNumber: number, answerTimeM
       answeredDelta: 0,
       skippedDelta: 1,
       answerTimeDelta: 0,
-    }
+    };
   }
 
-  const attemptPoints = answerPointsForAttempt(attemptNumber)
-  const bonus = timeBonus(answerTimeMs)
+  const attemptPoints = answerPointsForAttempt(attemptNumber);
+  const bonus = timeBonus(answerTimeMs);
   return {
     scoreDelta: attemptPoints + bonus,
     locationDelta: 0,
@@ -64,12 +64,12 @@ function calculateDelta(eventType: EventType, attemptNumber: number, answerTimeM
     answeredDelta: 1,
     skippedDelta: 0,
     answerTimeDelta: Math.max(0, Math.round(answerTimeMs)),
-  }
+  };
 }
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: CORS })
+    return new Response('ok', { headers: CORS });
   }
 
   try {
@@ -82,28 +82,28 @@ Deno.serve(async (req) => {
       attempt_number,
       answer_time_ms,
       display_name,
-    } = await req.json()
+    } = await req.json();
 
     if (!game_id || !player_id || !player_session_id || !event_type || !event_key) {
       return Response.json(
         { error: 'Missing game_id, player_id, player_session_id, event_type, or event_key' },
         { status: 400, headers: CORS },
-      )
+      );
     }
 
-    const validTypes: EventType[] = ['location_found', 'arrival_confirmed', 'answer_correct', 'question_skipped']
+    const validTypes: EventType[] = ['location_found', 'arrival_confirmed', 'answer_correct', 'question_skipped'];
     if (validTypes.indexOf(event_type) === -1) {
-      return Response.json({ error: 'Unsupported event_type' }, { status: 400, headers: CORS })
+      return Response.json({ error: 'Unsupported event_type' }, { status: 400, headers: CORS });
     }
 
-    const parsedAttempt = Math.max(1, Math.round(Number(attempt_number) || 1))
-    const parsedTimeMs = Math.max(0, Math.round(Number(answer_time_ms) || 0))
-    const delta = calculateDelta(event_type, parsedAttempt, parsedTimeMs)
+    const parsedAttempt = Math.max(1, Math.round(Number(attempt_number) || 1));
+    const parsedTimeMs = Math.max(0, Math.round(Number(answer_time_ms) || 0));
+    const delta = calculateDelta(event_type, parsedAttempt, parsedTimeMs);
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SERVICE_ROLE_KEY')!,
-    )
+    );
 
     const { error: insertEventError } = await supabase
       .from('score_events')
@@ -115,24 +115,24 @@ Deno.serve(async (req) => {
         event_type,
         points_delta: delta.scoreDelta,
         answer_time_ms: delta.answerTimeDelta,
-      })
+      });
 
     if (insertEventError && insertEventError.code !== '23505') {
-      throw insertEventError
+      throw insertEventError;
     }
 
-    const duplicate = insertEventError?.code === '23505'
+    const duplicate = insertEventError?.code === '23505';
 
     const { data: existingScore, error: existingScoreError } = await supabase
       .from('game_scores')
       .select('*')
       .eq('game_id', game_id)
       .eq('player_session_id', player_session_id)
-      .maybeSingle()
+      .maybeSingle();
 
-    if (existingScoreError) throw existingScoreError
+    if (existingScoreError) throw existingScoreError;
 
-    const safeDisplayName = String(display_name ?? '').trim() || null
+    const safeDisplayName = String(display_name ?? '').trim() || null;
 
     if (!existingScore) {
       const { data: createdScore, error: createScoreError } = await supabase
@@ -151,9 +151,9 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .select('*')
-        .single()
+        .single();
 
-      if (createScoreError) throw createScoreError
+      if (createScoreError) throw createScoreError;
 
       return Response.json(
         {
@@ -162,23 +162,23 @@ Deno.serve(async (req) => {
           total_answer_time_ms: createdScore.total_answer_time_ms,
         },
         { headers: CORS },
-      )
+      );
     }
 
     const updatePayload: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
-    }
+    };
 
-    if (safeDisplayName) updatePayload.display_name = safeDisplayName
+    if (safeDisplayName) updatePayload.display_name = safeDisplayName;
 
     if (!duplicate) {
-      updatePayload.score = Number(existingScore.score || 0) + delta.scoreDelta
-      updatePayload.locations_found = Number(existingScore.locations_found || 0) + delta.locationDelta
-      updatePayload.arrivals_confirmed = Number(existingScore.arrivals_confirmed || 0) + delta.arrivalDelta
-      updatePayload.questions_answered = Number(existingScore.questions_answered || 0) + delta.answeredDelta
-      updatePayload.questions_skipped = Number(existingScore.questions_skipped || 0) + delta.skippedDelta
+      updatePayload.score = Number(existingScore.score || 0) + delta.scoreDelta;
+      updatePayload.locations_found = Number(existingScore.locations_found || 0) + delta.locationDelta;
+      updatePayload.arrivals_confirmed = Number(existingScore.arrivals_confirmed || 0) + delta.arrivalDelta;
+      updatePayload.questions_answered = Number(existingScore.questions_answered || 0) + delta.answeredDelta;
+      updatePayload.questions_skipped = Number(existingScore.questions_skipped || 0) + delta.skippedDelta;
       updatePayload.total_answer_time_ms =
-        Number(existingScore.total_answer_time_ms || 0) + delta.answerTimeDelta
+        Number(existingScore.total_answer_time_ms || 0) + delta.answerTimeDelta;
     }
 
     const { data: updatedScore, error: updateScoreError } = await supabase
@@ -186,9 +186,9 @@ Deno.serve(async (req) => {
       .update(updatePayload)
       .eq('id', existingScore.id)
       .select('*')
-      .single()
+      .single();
 
-    if (updateScoreError) throw updateScoreError
+    if (updateScoreError) throw updateScoreError;
 
     return Response.json(
       {
@@ -197,11 +197,11 @@ Deno.serve(async (req) => {
         total_answer_time_ms: updatedScore.total_answer_time_ms,
       },
       { headers: CORS },
-    )
+    );
   } catch (err) {
-    return Response.json({ error: String(err) }, { status: 500, headers: CORS })
+    return Response.json({ error: String(err) }, { status: 500, headers: CORS });
   }
-})
+});
 
 
 

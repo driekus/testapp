@@ -43,6 +43,10 @@ The game uses Supabase Edge Functions for gameplay and payment:
 - `get-scoreboard` — returns top 3 overall plus up to 3 runs for the current player.
 - `set-score-display-name` — updates scoreboard display name for a player's runs.
 
+Shared edge helpers:
+
+- `supabase/functions/_shared/paymentVerification.ts` — shared paid-token verification used by gameplay endpoints.
+
 Leaderboard rules:
 
 - Correct answer points: 10 (1st), 5 (2nd), 3 (3rd), 2 (4th), 1 (5th+).
@@ -81,6 +85,18 @@ supabase functions deploy mark-played
 supabase functions deploy record-score-event
 supabase functions deploy get-scoreboard
 supabase functions deploy set-score-display-name
+```
+
+Redeploy all functions in one command:
+
+```powershell
+npm run deploy:functions
+```
+
+Preview which functions would deploy without executing:
+
+```powershell
+npm run deploy:functions:dry
 ```
 
 ## Real Tikkie API setup (go live)
@@ -226,6 +242,18 @@ Then in Netlify, open **Sites** and drag the local `dist` folder into the deploy
 
 ```powershell
 npm run test:logic
+```
+
+## Linting
+
+```powershell
+npm run lint
+```
+
+Auto-fix lint issues (including missing semicolons):
+
+```powershell
+npm run lint:fix
 ```
 
 ## Build production assets
