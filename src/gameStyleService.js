@@ -1,5 +1,21 @@
 import { supabase } from './supabaseClient.js';
 
+let runtimeSupabase = supabase;
+let runtimeDocument = document;
+
+/**
+ * Override runtime dependencies (used by tests).
+ * @param {{supabase?: any, documentRef?: Document}} deps
+ */
+export function setGameStyleServiceRuntimeDeps(deps = {}) {
+  if (Object.prototype.hasOwnProperty.call(deps, 'supabase')) {
+    runtimeSupabase = deps.supabase;
+  }
+  if (Object.prototype.hasOwnProperty.call(deps, 'documentRef')) {
+    runtimeDocument = deps.documentRef;
+  }
+}
+
 /**
  * Load custom CSS variables for a game from the database
  * If no custom styles exist, defaults are used (from CSS variables)
@@ -12,7 +28,11 @@ export async function loadGameStyles(gameId) {
   }
 
   try {
-    const { data, error } = await supabase
+    if (!runtimeSupabase) {
+      return;
+    }
+
+    const { data, error } = await runtimeSupabase
       .from('game_styles')
       .select('*')
       .eq('game_id', gameId)
@@ -40,7 +60,8 @@ export async function loadGameStyles(gameId) {
  */
 function applyCustomStyles(styleData) {
 
-  const root = document.documentElement;
+  const root = runtimeDocument?.documentElement;
+  if (!root) return;
 
   // Map of database column names to CSS variable names
   const styleMapping = {
@@ -94,7 +115,11 @@ function applyCustomStyles(styleData) {
  * @returns {Promise<Object>} The created game_styles record
  */
 export async function createDefaultGameStyles(gameId) {
-  const { data, error } = await supabase
+  if (!runtimeSupabase) {
+    throw new Error('Supabase is not configured.');
+  }
+
+  const { data, error } = await runtimeSupabase
     .from('game_styles')
     .insert([{ game_id: gameId }])
     .select()
