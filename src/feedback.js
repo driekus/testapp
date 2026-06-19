@@ -93,6 +93,7 @@ async function doSetScoreDisplayName() {
       const playerSessionId = data?.playerSessionId
       if (!playerSessionId) return
       await setScoreDisplayNameBySession({ game_id: gameId, player_session_id: playerSessionId, display_name: name })
+      await setScoreDisplayNameBySession({ game_id: gameId, player_session_id: playerSessionId, display_name: name, payment_token: paymentToken })
     } else {
       // Free game: set by player_id (one name per player)
       if (!playerId) return

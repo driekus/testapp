@@ -44,11 +44,12 @@ Deno.serve(async (req) => {
     if (!session.paid) {
       return Response.json({ error: 'Payment is not completed' }, { status: 400, headers: CORS })
     }
-    if (session.played) {
-      return Response.json({ ok: true, already_played: true }, { headers: CORS })
-    }
 
-    const { error: updateError } = await supabase
+    // ── Atomic mark-as-played ─────────────────────────────────────────────────
+    // Filter on played=false in the update itself so concurrent calls cannot
+    // both succeed. If another request already set played=true, no row is
+    // matched and we return already_played without throwing.
+    const { data: updated, error: updateError } = await supabase
       .from('payment_sessions')
       .update({
         played: true,
@@ -58,12 +59,18 @@ Deno.serve(async (req) => {
         played_at: new Date().toISOString(),
       })
       .eq('id', session.id)
+      .eq('played', false) // atomic guard — only one concurrent call wins
+      .select('id')
 
     if (updateError) throw updateError
+
+    // If no row was returned, a concurrent call already marked it as played
+    if (!updated || updated.length === 0) {
+      return Response.json({ ok: true, already_played: true }, { headers: CORS })
+    }
 
     return Response.json({ ok: true }, { headers: CORS })
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500, headers: CORS })
   }
 })
-

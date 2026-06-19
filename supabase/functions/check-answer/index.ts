@@ -5,11 +5,8 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const STRICT_PAYMENT_VERIFICATION = Deno.env.get('STRICT_PAYMENT_VERIFICATION') === 'true'
-
+// Payment verification is always enforced — the env toggle has been removed.
 async function verifyPaymentIfRequired(supabase: any, routeId: string, paymentToken?: string | null) {
-  if (!STRICT_PAYMENT_VERIFICATION) return null
-
   const { data: routeMeta, error: routeMetaError } = await supabase
     .from('routes')
     .select('game_id')
@@ -27,7 +24,7 @@ async function verifyPaymentIfRequired(supabase: any, routeId: string, paymentTo
 
   if (gameError) throw gameError
   if (!game) return { error: 'Game not found', status: 404 }
-  if (!game.requires_payment) return null
+  if (!game.requires_payment) return null  // free game — no payment needed
 
   if (!paymentToken) {
     return { error: 'Missing payment_token', status: 400 }
