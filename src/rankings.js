@@ -50,12 +50,8 @@ async function loadRankings() {
 
   els.closeBtn.textContent = tm('closeRankings')
   els.closeBtn.onclick = () => {
-    if (window.history.length > 1) {
-      window.history.back()
-      return
-    }
-    const fallback = slug ? `/${slug}` : '/'
-    window.location.replace(fallback)
+    // Rankings is the end of flow: always return to the games lobby.
+    window.location.replace(`/?refresh=${Date.now()}`)
   }
   els.refreshLink.textContent = tm('refreshRankings')
   els.refreshLink.href = buildRankingsUrl(slug)

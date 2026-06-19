@@ -74,5 +74,10 @@ export async function setScoreDisplayName(payload) {
   return callScoreFunction('set-score-display-name', payload)
 }
 
+export async function setScoreDisplayNameBySession(payload) {
+  return callScoreFunction('set-score-display-name-by-session', payload)
+}
+
+
 
 

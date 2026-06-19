@@ -5,7 +5,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#2f7dff" />
-    <title>Letter Quest — Feedback</title>
+    <title>Letter Quest — Results</title>
   </head>
   <body>
     <div id="app">
@@ -14,41 +14,20 @@
         <h1 id="feedback-title"></h1>
         <p id="feedback-subtitle" class="hint"></p>
 
+        <!-- Letters collected -->
         <section class="card">
           <h2 id="letters-label"></h2>
           <p id="collected-letters" class="letters"></p>
         </section>
 
+        <!-- Score summary -->
         <section class="card" id="score-summary-card">
           <h2 id="score-summary-title"></h2>
           <p id="score-summary-points"></p>
           <p id="score-summary-time" class="muted"></p>
         </section>
 
-        <section class="card" id="scoreboard-card">
-          <h2 id="scoreboard-title"></h2>
-          <p id="scoreboard-hint" class="muted"></p>
-          <div class="actions">
-            <a id="view-rankings-link" class="link-button" href="/rankings.html"></a>
-          </div>
-        </section>
-
-        <section id="card-winner" class="card hidden">
-          <h2 data-i18n="winnerTitle"></h2>
-          <p data-i18n="winnerHint"></p>
-          <input id="winner-name" type="text" data-i18n-placeholder="winnerName" />
-          <input id="winner-phone" type="tel" data-i18n-placeholder="winnerPhone" />
-          <p class="small muted" data-i18n="winnerPhoneResponsibility"></p>
-          <button id="save-winner-btn" class="ghost hidden"></button>
-          <div id="winner-confirm" class="hidden">
-            <p id="winner-confirm-text" class="small"></p>
-            <div class="actions">
-              <button id="winner-confirm-yes" type="button"></button>
-              <button id="winner-confirm-no" type="button" class="ghost"></button>
-            </div>
-          </div>
-        </section>
-
+        <!-- Optional feedback form -->
         <section class="card" id="feedback-form-section">
           <p id="feedback-prompt"></p>
           <textarea id="feedback-text" rows="5"></textarea>
@@ -57,10 +36,6 @@
             <button id="submit-feedback-btn"></button>
             <button id="skip-feedback-btn" class="ghost"></button>
           </div>
-        </section>
-
-        <section class="card hidden" id="feedback-thanks-section">
-          <p id="feedback-thanks"></p>
         </section>
 
       </main>

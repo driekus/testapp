@@ -122,6 +122,19 @@ const translations = {
       scoreboardEmpty: 'No rankings have been recorded for this game yet.',
       euros: 'EUR',
       paidGame: 'Paid game',
+      // Winner details page (paid games — shown before game starts)
+      winnerPageTitle: 'Your Details',
+      winnerPageSubtitle: 'Fill in your name and phone number to start playing.',
+      winnerSaveBtn: 'Save and start playing',
+      winnerSaving: 'Saving…',
+      winnerRequired: 'Name and phone number are required.',
+      winnerSaveError: 'Could not save your details. Please try again.',
+      // Free-game optional name prompt
+      nameTitle: 'Your name',
+      nameHint: 'Your name will appear on the scoreboard. This is optional.',
+      namePlaceholder: 'Your name (optional)',
+      nameStart: 'Start playing',
+      nameSkip: 'Skip',
     },
     admin: {
       languageLabel: 'Language',
@@ -359,6 +372,19 @@ const translations = {
       scoreboardEmpty: 'Er zijn nog geen scores opgeslagen voor dit spel.',
       euros: 'EUR',
       paidGame: 'Betaald spel',
+      // Winner details page (paid games — shown before game starts)
+      winnerPageTitle: 'Jouw gegevens',
+      winnerPageSubtitle: 'Vul je naam en telefoonnummer in om te beginnen met spelen.',
+      winnerSaveBtn: 'Opslaan en beginnen',
+      winnerSaving: 'Opslaan…',
+      winnerRequired: 'Naam en telefoonnummer zijn verplicht.',
+      winnerSaveError: 'Kon je gegevens niet opslaan. Probeer opnieuw.',
+      // Free-game optional name prompt
+      nameTitle: 'Jouw naam',
+      nameHint: 'Je naam verschijnt op het scorebord. Dit is optioneel.',
+      namePlaceholder: 'Je naam (optioneel)',
+      nameStart: 'Begin met spelen',
+      nameSkip: 'Overslaan',
     },
     admin: {
       languageLabel: 'Taal',

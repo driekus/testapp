@@ -3,10 +3,12 @@ import { getLanguage, t } from './i18n.js'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient.js'
 import { loadGameStyles } from './gameStyleService.js'
 import { markPlayed } from './payment.js'
-import { buildRankingsUrl, setScoreDisplayName } from './scoreService.js'
+import { buildRankingsUrl, setScoreDisplayName, setScoreDisplayNameBySession } from './scoreService.js'
 
 const language = getLanguage()
 const tm = (key, params) => t(language, 'main', key, params)
+
+// ─── Session data ─────────────────────────────────────────────────────────────
 
 const data = (() => {
   try {
@@ -15,24 +17,27 @@ const data = (() => {
   } catch { return null }
 })()
 
-const gameId = data?.gameId || ''
-const slug = data?.slug || ''
+const gameId          = data?.gameId || ''
+const slug            = data?.slug || ''
 const requiresPayment = Boolean(data?.requiresPayment)
-const paymentToken = data?.paymentToken || null
-const finalScore = Number(data?.score) || 0
+const paymentToken    = data?.paymentToken || null
+const finalScore      = Number(data?.score) || 0
 const totalAnswerTimeMs = Number(data?.totalAnswerTimeMs) || 0
-const playerId = data?.playerId || ''
-const WINNER_SAVED_KEY = paymentToken ? `letter-quest-winner-saved-${paymentToken}` : null
-const FEEDBACK_DRAFT_KEY = `letter-quest-feedback-draft-${slug || 'default'}`
+const playerId        = data?.playerId || ''
+const winnerName      = String(data?.winnerName ?? '').trim()
+const winnerPhone     = String(data?.winnerPhone ?? '').trim()
 
-// Load custom game styles if we have a game ID
+console.log('feedback: loaded data from sessionStorage:', { gameId, slug, requiresPayment, paymentToken, winnerName, winnerPhone })
+
+// ─── Load game styles ─────────────────────────────────────────────────────────
+
 if (gameId) {
   loadGameStyles(gameId).catch((err) => {
     console.warn('feedback: error loading game styles', err)
   })
 }
 
-// ─── Populate page ───────────────────────────────────────────────────────────
+// ─── Populate page ────────────────────────────────────────────────────────────
 
 if (data?.logoUrl) {
   const logo = document.querySelector('#game-logo')
@@ -51,276 +56,85 @@ document.querySelector('#feedback-prompt').textContent = tm('feedbackPrompt')
 document.querySelector('#feedback-text').placeholder = tm('feedbackPlaceholder')
 document.querySelector('#submit-feedback-btn').textContent = tm('feedbackSubmit')
 document.querySelector('#skip-feedback-btn').textContent = tm('feedbackSkip')
-document.querySelector('#feedback-thanks').textContent = tm('feedbackThanks')
-const backToGamesLabel = document.querySelector('#back-to-games')
-if (backToGamesLabel) backToGamesLabel.textContent = tm('backToGames')
 document.querySelector('#score-summary-title').textContent = tm('scoreSummaryTitle')
 document.querySelector('#score-summary-points').textContent = tm('scoreSummaryPoints', { score: finalScore })
 document.querySelector('#score-summary-time').textContent = tm('scoreSummaryTime', {
   seconds: (totalAnswerTimeMs / 1000).toFixed(2),
 })
 document.querySelector('#score-summary-time').classList.toggle('hidden', totalAnswerTimeMs <= 0)
-document.querySelector('#scoreboard-title').textContent = tm('scoreboardTitle')
-document.querySelector('#scoreboard-hint').textContent = tm('scoreboardHintSeparate')
-document.querySelector('#view-rankings-link').textContent = tm('viewRankings')
-document.querySelector('#view-rankings-link').href = buildRankingsUrl(slug)
-document.querySelector('#scoreboard-card').classList.toggle('hidden', !slug)
-document.querySelector('[data-i18n="winnerTitle"]').textContent = tm('winnerTitle')
-document.querySelector('[data-i18n="winnerHint"]').textContent = tm('winnerHint')
-document.querySelector('[data-i18n="winnerPhoneResponsibility"]').textContent = tm('winnerPhoneResponsibility')
-document.querySelector('#winner-name').placeholder = tm('winnerName')
-document.querySelector('#winner-phone').placeholder = tm('winnerPhone')
-document.querySelector('#winner-confirm-text').textContent = tm('winnerConfirmMissing')
-document.querySelector('#winner-confirm-yes').textContent = tm('winnerConfirmYes')
-document.querySelector('#winner-confirm-no').textContent = tm('winnerConfirmNo')
 
-// ─── Submit ──────────────────────────────────────────────────────────────────
+// ─── Navigation ───────────────────────────────────────────────────────────────
+
+function goToRankings() {
+  window.location.href = buildRankingsUrl(slug)
+}
+
+// ─── DB helpers ───────────────────────────────────────────────────────────────
+
+async function doMarkPlayed() {
+  if (!requiresPayment || !paymentToken || !slug) {
+    console.log('feedback: skipping markPlayed (paid check failed)', { requiresPayment, paymentToken, slug })
+    return
+  }
+  try {
+    console.log('feedback: calling markPlayed with:', { paymentToken, slug, winnerName, winnerPhone, letters: data?.letters })
+    await markPlayed(paymentToken, slug, winnerName, winnerPhone, data?.letters ?? [])
+  } catch (err) {
+    console.warn('feedback: could not mark played', err)
+  }
+}
+
+async function doSetScoreDisplayName() {
+  // Set display name for ALL games (both paid and free).
+  // For paid games: use player_session_id (unique per play session) to avoid overwriting other plays
+  // For free games: use player_id (one name per player per game)
+  const name = winnerName  // already set correctly: paid uses winner name, free uses player name
+  if (!name || !gameId) {
+    console.log('feedback: skipping setScoreDisplayName (missing data)', { name, gameId })
+    return
+  }
+
+  try {
+    if (requiresPayment) {
+      // Paid game: set by session to allow different names per payment
+      const playerSessionId = data?.playerSessionId
+      if (!playerSessionId) {
+        console.log('feedback: skipping setScoreDisplayName for paid (missing playerSessionId)')
+        return
+      }
+      console.log('feedback: calling setScoreDisplayNameBySession with:', { game_id: gameId, player_session_id: playerSessionId, display_name: name })
+      await setScoreDisplayNameBySession({ game_id: gameId, player_session_id: playerSessionId, display_name: name })
+    } else {
+      // Free game: set by player_id (one name per player)
+      if (!playerId) {
+        console.log('feedback: skipping setScoreDisplayName for free (missing playerId)')
+        return
+      }
+      console.log('feedback: calling setScoreDisplayName with:', { game_id: gameId, player_id: playerId, display_name: name })
+      await setScoreDisplayName({ game_id: gameId, player_id: playerId, display_name: name })
+    }
+  } catch (err) {
+    console.warn('feedback: could not set display name', err)
+  }
+}
+
+// ─── Submit handler ───────────────────────────────────────────────────────────
 
 const submitBtn = document.querySelector('#submit-feedback-btn')
-const skipBtn = document.querySelector('#skip-feedback-btn')
-const saveWinnerBtn = document.querySelector('#save-winner-btn')
-const backToGamesLink = document.querySelector('#back-to-games')
-const viewRankingsLink = document.querySelector('#view-rankings-link')
-const textarea = document.querySelector('#feedback-text')
-const statusEl = document.querySelector('#feedback-status')
-const winnerCard = document.querySelector('#card-winner')
-const winnerName = document.querySelector('#winner-name')
-const winnerPhone = document.querySelector('#winner-phone')
-const winnerConfirm = document.querySelector('#winner-confirm')
-const winnerConfirmYes = document.querySelector('#winner-confirm-yes')
-const winnerConfirmNo = document.querySelector('#winner-confirm-no')
-let playedMarked = false
-let allowPageExit = false
-let leaveConfirmedWithoutSubmit = false
-let feedbackSubmitted = false
-let winnerSaved = (() => {
-  if (!WINNER_SAVED_KEY) return false
-  try {
-    return localStorage.getItem(WINNER_SAVED_KEY) === '1'
-  } catch {
-    return false
-  }
-})()
-
-saveWinnerBtn.textContent = tm('winnerSaveOnly')
-
-function saveDraft() {
-  try {
-    localStorage.setItem(FEEDBACK_DRAFT_KEY, JSON.stringify({
-      feedback: textarea.value,
-      winnerName: winnerName.value,
-      winnerPhone: winnerPhone.value,
-    }))
-  } catch {
-    // Ignore private mode / unavailable storage.
-  }
-}
-
-function clearDraft() {
-  try {
-    localStorage.removeItem(FEEDBACK_DRAFT_KEY)
-  } catch {
-    // Ignore private mode / unavailable storage.
-  }
-}
-
-function restoreDraft() {
-  try {
-    const raw = localStorage.getItem(FEEDBACK_DRAFT_KEY)
-    if (!raw) return
-    const parsed = JSON.parse(raw)
-    textarea.value = String(parsed.feedback ?? '')
-    winnerName.value = String(parsed.winnerName ?? '')
-    winnerPhone.value = String(parsed.winnerPhone ?? '')
-  } catch {
-    // Ignore malformed draft data.
-  }
-}
-
-restoreDraft()
-textarea.addEventListener('input', saveDraft)
-winnerName.addEventListener('input', saveDraft)
-winnerPhone.addEventListener('input', saveDraft)
-
-async function refreshWinnerVisibility() {
-  if (!requiresPayment) return
-
-  if (!winnerSaved && paymentToken) {
-    try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/check-payment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ payment_token: paymentToken, game_slug: slug }),
-      })
-      const json = await res.json()
-      if (res.ok && json.played) {
-        winnerSaved = true
-        playedMarked = true
-        if (WINNER_SAVED_KEY) {
-          try { localStorage.setItem(WINNER_SAVED_KEY, '1') } catch { /* ignore */ }
-        }
-      }
-    } catch {
-      // If status cannot be fetched, fall back to the local state.
-    }
-  }
-
-  const showWinnerForm = !winnerSaved
-  winnerCard.classList.toggle('hidden', !showWinnerForm)
-  saveWinnerBtn.classList.toggle('hidden', !showWinnerForm)
-}
-
-refreshWinnerVisibility()
-
-function goToGames() {
-  // Cache-busting query avoids stale app shell/page cache after feedback navigation.
-  window.location.replace(`/?refresh=${Date.now()}`)
-}
-
-function hasUnsavedFormInput() {
-   // Leaving guard is about unsent feedback message and missing winner details (when required)
-   if (textarea.value.trim()) return true
-   // Also check if winner fields are empty when payment is required and not yet saved
-   if (requiresPayment && !winnerSaved) {
-     const nameEmpty = !winnerName.value.trim()
-     const phoneEmpty = !winnerPhone.value.trim()
-     if (nameEmpty || phoneEmpty) return true
-   }
-   return false
- }
- 
- function shouldBlockLeaving() {
-   if (!hasUnsavedFormInput()) return false
-   if (allowPageExit) return false
-   if (feedbackSubmitted) return false
-   if (leaveConfirmedWithoutSubmit) return false
-   if (winnerSaved) return false
-   return true
- }
-
-async function confirmLeaveWithoutSubmit() {
-  return window.confirm(tm('feedbackLeaveEmptyConfirm'))
-}
-
-async function confirmLeaveWithUnsavedInput() {
-   if (!shouldBlockLeaving()) return true
-   // Show different message depending on what's unsaved
-   const hasFeedback = Boolean(textarea.value.trim())
-   const confirmed = hasFeedback
-     ? window.confirm(tm('feedbackLeaveConfirm'))
-     : window.confirm(tm('feedbackLeaveEmptyConfirm'))
-   if (confirmed) leaveConfirmedWithoutSubmit = true
-   return confirmed
- }
-
-window.addEventListener('beforeunload', (event) => {
-  if (!shouldBlockLeaving()) return
-  event.preventDefault()
-  event.returnValue = ''
-})
-
-backToGamesLink?.addEventListener('click', (e) => {
-  e.preventDefault()
-  confirmLeaveWithUnsavedInput().then((confirmed) => {
-    if (!confirmed) return
-    allowPageExit = true
-    goToGames()
-  })
-})
-
-viewRankingsLink?.addEventListener('click', (e) => {
-  e.preventDefault()
-  confirmLeaveWithUnsavedInput().then((confirmed) => {
-    if (!confirmed) return
-    allowPageExit = true
-    window.location.href = viewRankingsLink.href
-  })
-})
-
-async function markPlayedIfNeeded() {
-  if (playedMarked || !requiresPayment || !paymentToken || !slug) return
-  await markPlayed(
-    paymentToken,
-    slug,
-    winnerName.value.trim(),
-    winnerPhone.value.trim(),
-    data?.letters ?? [],
-  )
-  playedMarked = true
-  if (WINNER_SAVED_KEY) {
-    try {
-      localStorage.setItem(WINNER_SAVED_KEY, '1')
-    } catch {
-      // Ignore unavailable storage in private mode.
-    }
-  }
-  winnerSaved = true
-  winnerCard.classList.add('hidden')
-}
-
-async function saveScoreboardNameIfPresent() {
-  const name = winnerName.value.trim()
-  if (!name || !gameId || !playerId) return
-  try {
-    await setScoreDisplayName({
-      game_id: gameId,
-      player_id: playerId,
-      display_name: name,
-    })
-  } catch (err) {
-    console.warn('feedback: could not update scoreboard display name', err)
-  }
-}
-
-function hideWinnerConfirm() {
-  winnerConfirm.classList.add('hidden')
-}
-
-async function confirmMissingWinnerFields() {
-  if (!requiresPayment || winnerSaved) return true
-  if (winnerName.value.trim() && winnerPhone.value.trim()) return true
-
-  winnerConfirm.classList.remove('hidden')
-  return new Promise((resolve) => {
-    winnerConfirmYes.onclick = () => {
-      hideWinnerConfirm()
-      resolve(true)
-    }
-    winnerConfirmNo.onclick = () => {
-      hideWinnerConfirm()
-      resolve(false)
-    }
-  })
-}
-
-skipBtn.addEventListener('click', async () => {
-  if (!(await confirmMissingWinnerFields())) return
-  skipBtn.disabled = true
-  saveWinnerBtn.disabled = true
-  // User explicitly chose to continue without feedback, so skip leave warnings.
-  allowPageExit = true
-  feedbackSubmitted = true
-  leaveConfirmedWithoutSubmit = true
-  try {
-    await saveScoreboardNameIfPresent()
-    await markPlayedIfNeeded()
-    clearDraft()
-  } catch {
-    // Do not block leaving the page if mark-played fails.
-  }
-  goToGames()
-})
+const skipBtn   = document.querySelector('#skip-feedback-btn')
+const textarea  = document.querySelector('#feedback-text')
+const statusEl  = document.querySelector('#feedback-status')
 
 submitBtn.addEventListener('click', async () => {
   const message = textarea.value.trim()
-  if (!message) return
-  if (!(await confirmMissingWinnerFields())) return
+  if (!message) {
+    // Treat empty submit as skip
+    skipBtn.click()
+    return
+  }
 
   submitBtn.disabled = true
-  saveWinnerBtn.disabled = true
+  skipBtn.disabled = true
   submitBtn.textContent = tm('feedbackSending')
   statusEl.classList.add('hidden')
 
@@ -329,44 +143,32 @@ submitBtn.addEventListener('click', async () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       },
       body: JSON.stringify({ slug, message }),
     })
     const json = await res.json()
     if (!res.ok) throw new Error(json.error ?? res.statusText)
-    await saveScoreboardNameIfPresent()
-    await markPlayedIfNeeded()
-    feedbackSubmitted = true
-    clearDraft()
-    allowPageExit = true
-    goToGames()
+
+    await Promise.allSettled([doMarkPlayed(), doSetScoreDisplayName()])
+    goToRankings()
   } catch {
     submitBtn.disabled = false
-    saveWinnerBtn.disabled = false
+    skipBtn.disabled = false
     submitBtn.textContent = tm('feedbackSubmit')
     statusEl.textContent = tm('feedbackError')
     statusEl.classList.remove('hidden')
   }
 })
 
-saveWinnerBtn.addEventListener('click', async () => {
-  if (!(await confirmMissingWinnerFields())) return
+// ─── Skip handler ─────────────────────────────────────────────────────────────
 
-  saveWinnerBtn.disabled = true
-  statusEl.classList.add('hidden')
-
+skipBtn.addEventListener('click', async () => {
+  skipBtn.disabled = true
+  submitBtn.disabled = true
   try {
-    await saveScoreboardNameIfPresent()
-    await markPlayedIfNeeded()
-    statusEl.textContent = tm('winnerSavedNotice')
-    statusEl.classList.remove('hidden')
-    submitBtn.disabled = false
-    skipBtn.disabled = false
-  } catch {
-    saveWinnerBtn.disabled = false
-    statusEl.textContent = tm('feedbackError')
-    statusEl.classList.remove('hidden')
-  }
+    await Promise.allSettled([doMarkPlayed(), doSetScoreDisplayName()])
+  } catch { /* non-fatal */ }
+  goToRankings()
 })
 

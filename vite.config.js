@@ -5,11 +5,13 @@ export default defineConfig({
     // Serve index.html for any unknown path so /:slug works in dev
     historyApiFallback: {
       rewrites: [
-        // admin stays on admin.html
         { from: /^\/admin\.html/, to: '/admin.html' },
         { from: /^\/rankings\.html/, to: '/rankings.html' },
-        // everything else → index.html
-        { from: /^\/(?!admin\.html|rankings\.html)/, to: '/index.html' },
+        { from: /^\/feedback\.html/, to: '/feedback.html' },
+        { from: /^\/winner\.html/, to: '/winner.html' },
+        { from: /^\/mock-payment\.html/, to: '/mock-payment.html' },
+        // slug-based routes → index.html
+        { from: /^\//, to: '/index.html' },
       ],
     },
   },
@@ -20,6 +22,7 @@ export default defineConfig({
         admin: 'admin.html',
         feedback: 'feedback.html',
         rankings: 'rankings.html',
+        winner: 'winner.html',
         'mock-payment': 'mock-payment.html',
       },
     },

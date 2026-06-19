@@ -49,6 +49,11 @@ const state = {
   priceInCents: 0,
   paymentToken: null,
   paymentReady: true,
+  // player identity
+  winnerName: '',           // paid games: loaded from localStorage after winner.html
+  winnerPhone: '',          // paid games: loaded from localStorage after winner.html
+  playerDisplayName: '',    // free games: entered in optional name prompt
+  nameConfirmed: true,      // free games: true once name card is dismissed
   // quest progress
   currentLocationIndex: 0,
   collectedLetters: [],     // accumulated across all routes
@@ -142,6 +147,9 @@ function getEls() {
     cardPayment: document.querySelector('#card-payment'),
     paymentMessage: document.querySelector('#payment-message'),
     payAndPlay: document.querySelector('#pay-and-play'),
+    cardName: document.querySelector('#card-name'),
+    playerNameInput: document.querySelector('#player-name-input'),
+    startWithName: document.querySelector('#start-with-name'),
     cardTarget: document.querySelector('#card-target'),
     cardProgress: document.querySelector('#card-progress'),
     cardLocation: document.querySelector('#card-location'),
@@ -227,6 +235,18 @@ function updateUi() {
   }
 
   els.cardPayment.classList.add('hidden')
+
+  // For free games: show the optional name prompt before enabling location
+  if (state.gameId && !state.requiresPayment && !state.nameConfirmed) {
+    els.cardName?.classList.remove('hidden')
+    els.cardLocation.classList.add('hidden')
+    els.cardTarget.classList.add('hidden')
+    els.cardProgress.classList.add('hidden')
+    els.cardStatus.classList.add('hidden')
+    els.cardQuestion.classList.add('hidden')
+    return
+  }
+  els.cardName?.classList.add('hidden')
 
   // When location is not yet enabled, show only the location card
   const locationActive = state.geoWatchId !== null
@@ -769,21 +789,29 @@ function completeCurrentLocation(letter = null) {
       state.statusMessage = tm('routeComplete', { name: nextRoute.display_name })
       saveSession()
     } else {
-      clearSession()
-      try {
-        sessionStorage.setItem('letter-quest-feedback', JSON.stringify({
-          gameId: state.gameId,
-          slug,
-          displayName: state.displayName,
-          letters: state.collectedLetters,
-          playerId: state.playerId,
-          score: state.score,
-          totalAnswerTimeMs: state.totalAnswerTimeMs,
-          playerSessionId: state.playerSessionId,
-          logoUrl: els.gameLogo?.src || '',
-          requiresPayment: state.requiresPayment,
-          paymentToken: state.paymentToken,
-        }))
+       clearSession()
+       try {
+         // Clear winner details from session so next play requires fresh winner.html form
+         sessionStorage.removeItem('letter-quest-winner-details')
+
+         const feedbackData = {
+           gameId: state.gameId,
+           slug,
+           displayName: state.displayName,
+           letters: state.collectedLetters,
+           playerId: state.playerId,
+           score: state.score,
+           totalAnswerTimeMs: state.totalAnswerTimeMs,
+           playerSessionId: state.playerSessionId,
+           logoUrl: els.gameLogo?.src || '',
+           requiresPayment: state.requiresPayment,
+           paymentToken: state.paymentToken,
+           // Winner/player name passed through to feedback for DB save
+           winnerName: state.requiresPayment ? state.winnerName : state.playerDisplayName,
+           winnerPhone: state.requiresPayment ? state.winnerPhone : '',
+         }
+         console.log('main: setting feedback data:', feedbackData)
+         sessionStorage.setItem('letter-quest-feedback', JSON.stringify(feedbackData))
       } catch { /* ignore */ }
       window.location.href = '/feedback.html'
       return
@@ -950,6 +978,30 @@ async function loadGame() {
           updateUi()
           return
         }
+
+        // Read winner details saved by winner.js (via sessionStorage)
+        let savedWinner = null
+        try {
+          const raw = sessionStorage.getItem('letter-quest-winner-details')
+          savedWinner = raw ? JSON.parse(raw) : null
+          console.log('main: read winner details from sessionStorage:', { raw, parsed: savedWinner })
+        } catch (err) {
+          console.warn('main: failed to parse winner details', err)
+        }
+
+        if (!savedWinner?.name || !savedWinner?.phone) {
+          console.log('main: winner details missing, redirecting to winner.html')
+          // Redirect to the winner details page — returns here after saving
+          window.location.href = `/winner.html?slug=${encodeURIComponent(slug)}`
+          return
+        }
+
+        state.winnerName = savedWinner.name
+        state.winnerPhone = savedWinner.phone
+        console.log('main: set state winner details:', { winnerName: state.winnerName, winnerPhone: state.winnerPhone })
+      } else {
+        // Free game: name prompt will be shown by updateUi before location is enabled
+        state.nameConfirmed = false
       }
 
       const saved = loadSavedSession()
@@ -1041,6 +1093,19 @@ if (!slug) {
     } catch {
       els.payAndPlay.disabled = false
       showPaymentCard('payToPlay')
+    }
+  })
+  // Free-game optional name card
+  els.startWithName?.addEventListener('click', () => {
+    state.playerDisplayName = els.playerNameInput?.value.trim() || ''
+    state.nameConfirmed = true
+    updateUi()
+  })
+  els.playerNameInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      state.playerDisplayName = els.playerNameInput.value.trim() || ''
+      state.nameConfirmed = true
+      updateUi()
     }
   })
   els.confirmLetter.addEventListener('click', confirmLetter)

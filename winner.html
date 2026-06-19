@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2f7dff" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>Letter Quest — Your Details</title>
+  </head>
+  <body>
+    <div id="app">
+      <main class="container">
+        <img id="game-logo" class="game-logo hidden" alt="" />
+        <h1 id="winner-page-title"></h1>
+        <p id="winner-page-subtitle" class="hint"></p>
+
+        <section class="card" id="winner-form-card">
+          <h2 id="winner-form-heading"></h2>
+          <p id="winner-form-hint"></p>
+          <input id="winner-name" type="text" autocomplete="name" />
+          <input id="winner-phone" type="tel" autocomplete="tel" />
+          <p class="small muted" id="winner-phone-responsibility"></p>
+          <p id="winner-status" class="hidden" style="color: var(--accent-text-amber, #92400e);"></p>
+          <div class="actions">
+            <button id="winner-save-btn" type="button"></button>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/winner.js"></script>
+  </body>
+</html>
+

@@ -49,6 +49,16 @@
           </div>
         </section>
 
+        <!-- Optional name prompt for free games (shown before location is enabled) -->
+        <section id="card-name" class="card hidden">
+          <h2 data-i18n="nameTitle"></h2>
+          <p data-i18n="nameHint"></p>
+          <input id="player-name-input" type="text" autocomplete="name" data-i18n-placeholder="namePlaceholder" />
+          <div class="actions">
+            <button id="start-with-name" type="button" data-i18n="nameStart"></button>
+          </div>
+        </section>
+
         <section id="card-target" class="card">
           <h2 data-i18n="currentTarget"></h2>
           <p id="route-badge" class="route-badge"></p>
