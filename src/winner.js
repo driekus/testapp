@@ -122,9 +122,7 @@ saveBtn.addEventListener('click', async () => {
      // Pass name+phone to the game session via sessionStorage
      // (game will include these in feedback sessionStorage when game ends)
      try {
-       console.log('winner: saving to sessionStorage:', { name, phone })
        sessionStorage.setItem('letter-quest-winner-details', JSON.stringify({ name, phone }))
-       console.log('winner: verified sessionStorage:', sessionStorage.getItem('letter-quest-winner-details'))
      } catch { /* ignore */ }
 
      window.location.replace(`/${slug}`)

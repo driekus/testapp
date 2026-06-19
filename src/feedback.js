@@ -27,8 +27,6 @@ const playerId        = data?.playerId || ''
 const winnerName      = String(data?.winnerName ?? '').trim()
 const winnerPhone     = String(data?.winnerPhone ?? '').trim()
 
-console.log('feedback: loaded data from sessionStorage:', { gameId, slug, requiresPayment, paymentToken, winnerName, winnerPhone })
-
 // ─── Load game styles ─────────────────────────────────────────────────────────
 
 if (gameId) {
@@ -72,12 +70,8 @@ function goToRankings() {
 // ─── DB helpers ───────────────────────────────────────────────────────────────
 
 async function doMarkPlayed() {
-  if (!requiresPayment || !paymentToken || !slug) {
-    console.log('feedback: skipping markPlayed (paid check failed)', { requiresPayment, paymentToken, slug })
-    return
-  }
+  if (!requiresPayment || !paymentToken || !slug) return
   try {
-    console.log('feedback: calling markPlayed with:', { paymentToken, slug, winnerName, winnerPhone, letters: data?.letters })
     await markPlayed(paymentToken, slug, winnerName, winnerPhone, data?.letters ?? [])
   } catch (err) {
     console.warn('feedback: could not mark played', err)
@@ -90,7 +84,6 @@ async function doSetScoreDisplayName() {
   // For free games: use player_id (one name per player per game)
   const name = winnerName  // already set correctly: paid uses winner name, free uses player name
   if (!name || !gameId) {
-    console.log('feedback: skipping setScoreDisplayName (missing data)', { name, gameId })
     return
   }
 
@@ -98,19 +91,11 @@ async function doSetScoreDisplayName() {
     if (requiresPayment) {
       // Paid game: set by session to allow different names per payment
       const playerSessionId = data?.playerSessionId
-      if (!playerSessionId) {
-        console.log('feedback: skipping setScoreDisplayName for paid (missing playerSessionId)')
-        return
-      }
-      console.log('feedback: calling setScoreDisplayNameBySession with:', { game_id: gameId, player_session_id: playerSessionId, display_name: name })
+      if (!playerSessionId) return
       await setScoreDisplayNameBySession({ game_id: gameId, player_session_id: playerSessionId, display_name: name })
     } else {
       // Free game: set by player_id (one name per player)
-      if (!playerId) {
-        console.log('feedback: skipping setScoreDisplayName for free (missing playerId)')
-        return
-      }
-      console.log('feedback: calling setScoreDisplayName with:', { game_id: gameId, player_id: playerId, display_name: name })
+      if (!playerId) return
       await setScoreDisplayName({ game_id: gameId, player_id: playerId, display_name: name })
     }
   } catch (err) {

@@ -50,8 +50,8 @@ const state = {
   paymentToken: null,
   paymentReady: true,
   // player identity
-  winnerName: '',           // paid games: loaded from localStorage after winner.html
-  winnerPhone: '',          // paid games: loaded from localStorage after winner.html
+  winnerName: '',           // paid games: loaded from sessionStorage after winner.html
+  winnerPhone: '',          // paid games: loaded from sessionStorage after winner.html
   playerDisplayName: '',    // free games: entered in optional name prompt
   nameConfirmed: true,      // free games: true once name card is dismissed
   // quest progress
@@ -222,6 +222,18 @@ function updateUi() {
   updatePaidBadge()
   if (els.scoreTotal) {
     els.scoreTotal.textContent = tm('scoreTotal', { score: state.score })
+  }
+
+  // Avoid card flicker before game type is resolved (free vs paid).
+  if (!state.gameId) {
+    els.cardPayment.classList.add('hidden')
+    els.cardName?.classList.add('hidden')
+    els.cardTarget.classList.add('hidden')
+    els.cardProgress.classList.add('hidden')
+    els.cardLocation.classList.add('hidden')
+    els.cardStatus.classList.add('hidden')
+    els.cardQuestion.classList.add('hidden')
+    return
   }
 
   if (state.requiresPayment && !state.paymentReady) {
@@ -441,6 +453,7 @@ function saveSession() {
       lastLetterGrantedAt: state.lastLetterGrantedAt,
       playerId: state.playerId,
       playerSessionId: state.playerSessionId,
+      playerDisplayName: state.playerDisplayName,
       score: state.score,
       lastScoreDelta: state.lastScoreDelta,
       totalAnswerTimeMs: state.totalAnswerTimeMs,
@@ -810,7 +823,6 @@ function completeCurrentLocation(letter = null) {
            winnerName: state.requiresPayment ? state.winnerName : state.playerDisplayName,
            winnerPhone: state.requiresPayment ? state.winnerPhone : '',
          }
-         console.log('main: setting feedback data:', feedbackData)
          sessionStorage.setItem('letter-quest-feedback', JSON.stringify(feedbackData))
       } catch { /* ignore */ }
       window.location.href = '/feedback.html'
@@ -945,6 +957,7 @@ async function resolvePaymentAccess() {
 
 async function loadGame() {
   state.configStatus = tm('configLoading')
+  let shouldAutoResumeTracking = false
   updateUi()
 
   try {
@@ -984,13 +997,11 @@ async function loadGame() {
         try {
           const raw = sessionStorage.getItem('letter-quest-winner-details')
           savedWinner = raw ? JSON.parse(raw) : null
-          console.log('main: read winner details from sessionStorage:', { raw, parsed: savedWinner })
         } catch (err) {
           console.warn('main: failed to parse winner details', err)
         }
 
         if (!savedWinner?.name || !savedWinner?.phone) {
-          console.log('main: winner details missing, redirecting to winner.html')
           // Redirect to the winner details page — returns here after saving
           window.location.href = `/winner.html?slug=${encodeURIComponent(slug)}`
           return
@@ -998,7 +1009,6 @@ async function loadGame() {
 
         state.winnerName = savedWinner.name
         state.winnerPhone = savedWinner.phone
-        console.log('main: set state winner details:', { winnerName: state.winnerName, winnerPhone: state.winnerPhone })
       } else {
         // Free game: name prompt will be shown by updateUi before location is enabled
         state.nameConfirmed = false
@@ -1024,11 +1034,20 @@ async function loadGame() {
         state.lastLetterGrantedAt = saved.lastLetterGrantedAt ?? 0
         state.playerId = saved.playerId || state.playerId
         state.playerSessionId = saved.playerSessionId || freshPlaySessionId
+        state.playerDisplayName = saved.playerDisplayName || ''
         state.score = Number(saved.score) || 0
         state.lastScoreDelta = Number(saved.lastScoreDelta) || 0
         state.totalAnswerTimeMs = Number(saved.totalAnswerTimeMs) || 0
         state.questionStartedAt = saved.questionStartedAt ?? 0
         state.statusMessage = tm('sessionRestored')
+        // Restored sessions should not re-show the free-name gate.
+        state.nameConfirmed = true
+
+        const hasProgress =
+          state.currentLocationIndex > 0 ||
+          state.collectedLetters.length > 0 ||
+          state.routeComplete
+        shouldAutoResumeTracking = hasProgress
       } else {
         state.gameRoutes = game.routes
         state.displayName = game.display_name
@@ -1055,6 +1074,23 @@ async function loadGame() {
     state.statusMessage = tm('tapToBegin')
   }
   updateUi()
+
+  if (
+    shouldAutoResumeTracking &&
+    state.geoWatchId === null &&
+    navigator.geolocation &&
+    navigator.permissions?.query
+  ) {
+    try {
+      const permission = await navigator.permissions.query({ name: 'geolocation' })
+      if (permission.state === 'granted') {
+        // Resume GPS watch silently only when permission was already granted.
+        startLocationTracking()
+      }
+    } catch {
+      // Ignore permission-query failures and keep manual location-start flow.
+    }
+  }
 }
 
 // ─── Boot ───────────────────────────────────────────────────────────────────
