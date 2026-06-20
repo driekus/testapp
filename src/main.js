@@ -398,13 +398,17 @@ async function confirmArrival() {
       }),
     });
     const json = await res.json();
-    if (!res.ok) throw new Error(json.error ?? res.statusText);
-
-    state.pendingLetter = json.letter;
-    pushNextLocation(json.next_location);
-    await recordProgressEvent(SCORE_EVENT_TYPES.ARRIVAL_CONFIRMED);
-    state.statusMessage = tm('reached', { name: state.route[state.currentLocationIndex].name });
-    saveSession();
+    if (!res.ok) {
+      state.serverError = true;
+      state.statusMessage = tm('serverError');
+      state.lastLetterGrantedAt = 0;  // allow retry on next GPS tick
+    } else {
+      state.pendingLetter = json.letter;
+      pushNextLocation(json.next_location);
+      await recordProgressEvent(SCORE_EVENT_TYPES.ARRIVAL_CONFIRMED);
+      state.statusMessage = tm('reached', { name: state.route[state.currentLocationIndex].name });
+      saveSession();
+    }
   } catch {
     state.serverError = true;
     state.statusMessage = tm('serverError');
@@ -443,9 +447,10 @@ async function submitAnswer() {
       }),
     });
     const json = await res.json();
-    if (!res.ok) throw new Error(json.error ?? res.statusText);
-
-    if (json.correct) {
+    if (!res.ok) {
+      state.serverError = true;
+      state.statusMessage = tm('serverError');
+    } else if (json.correct) {
       const attemptNumber = state.answerAttempts + 1;
       const answerTimeMs = state.questionStartedAt > 0
         ? Math.max(0, Date.now() - state.questionStartedAt)
@@ -559,16 +564,19 @@ async function skipQuestion() {
       }),
     });
     const json = await res.json();
-    if (!res.ok) throw new Error(json.error ?? res.statusText);
-
-    state.pendingQuestion = false;
-    state.answerAttempts = 0;
-    state.questionStartedAt = 0;
-    pushNextLocation(json.next_location);
-    await recordProgressEvent(SCORE_EVENT_TYPES.ARRIVAL_CONFIRMED);
-    await recordProgressEvent(SCORE_EVENT_TYPES.QUESTION_SKIPPED);
-    state.statusMessage = tm('questionSkippedPenalty');
-    completeCurrentLocation(null);
+    if (!res.ok) {
+      state.serverError = true;
+      state.statusMessage = tm('serverError');
+    } else {
+      state.pendingQuestion = false;
+      state.answerAttempts = 0;
+      state.questionStartedAt = 0;
+      pushNextLocation(json.next_location);
+      await recordProgressEvent(SCORE_EVENT_TYPES.ARRIVAL_CONFIRMED);
+      await recordProgressEvent(SCORE_EVENT_TYPES.QUESTION_SKIPPED);
+      state.statusMessage = tm('questionSkippedPenalty');
+      completeCurrentLocation(null);
+    }
   } catch {
     state.serverError = true;
     state.statusMessage = tm('serverError');
@@ -667,22 +675,25 @@ async function loadGame() {
         }
 
         // Read winner details saved by winner.js (via sessionStorage)
-        let savedWinner = null;
+        let winnerName = '';
+        let winnerPhone = '';
         try {
           const raw = sessionStorage.getItem('letter-quest-winner-details');
-          savedWinner = raw ? JSON.parse(raw) : null;
+          const parsed = raw ? JSON.parse(raw) : null;
+          winnerName = String(parsed?.name ?? '').trim();
+          winnerPhone = String(parsed?.phone ?? '').trim();
         } catch (err) {
           console.warn('main: failed to parse winner details', err);
         }
 
-        if (!savedWinner?.name || !savedWinner?.phone) {
+        if (!winnerName || !winnerPhone) {
           // Redirect to the winner details page — returns here after saving
           window.location.href = `/winner.html?slug=${encodeURIComponent(slug)}`;
           return;
         }
 
-        state.winnerName = savedWinner.name;
-        state.winnerPhone = savedWinner.phone;
+        state.winnerName = winnerName;
+        state.winnerPhone = winnerPhone;
       } else {
         // Free game: name prompt will be shown by updateUi before location is enabled
         state.nameConfirmed = false;
@@ -717,11 +728,10 @@ async function loadGame() {
         // Restored sessions should not re-show the free-name gate.
         state.nameConfirmed = true;
 
-        const hasProgress =
+        shouldAutoResumeTracking =
           state.currentLocationIndex > 0 ||
           state.collectedLetters.length > 0 ||
           state.routeComplete;
-        shouldAutoResumeTracking = hasProgress;
       } else {
         state.gameRoutes = game.routes;
         state.displayName = game.display_name;

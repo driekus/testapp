@@ -519,7 +519,7 @@ const translations = {
  * @returns {string} Interpolated string.
  */
 function interpolate(template, params = {}) {
-  return template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''));
+  return template.replace(/\{(\w+)}/g, (_, key) => String(params[key] ?? ''));
 }
 
 /**

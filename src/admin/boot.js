@@ -68,7 +68,6 @@ const {
   flushCurrentRouteToState,
   syncFormFromRoute,
   collectRouteFromInputs,
-  setLogoPreview,
   handleLogoUpload,
   handleLogoRemove,
   bindRowsDelegate,

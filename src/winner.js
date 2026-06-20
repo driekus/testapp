@@ -122,7 +122,13 @@ saveBtn.addEventListener('click', async () => {
       body: JSON.stringify(buildWinnerSavePayload({ paymentToken, slug, name, phone })),
     });
     const json = await res.json();
-    if (!res.ok) throw new Error(json.error ?? res.statusText);
+    if (!res.ok) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = tm('winnerSaveBtn');
+      statusEl.textContent = String(json?.error || res.statusText || tm('winnerSaveError'));
+      statusEl.classList.remove('hidden');
+      return;
+    }
 
      // Pass name+phone to the game session via sessionStorage
      // (game will include these in feedback sessionStorage when game ends)

@@ -140,7 +140,14 @@ submitBtn.addEventListener('click', async () => {
       body: JSON.stringify({ slug, message }),
     });
     const json = await res.json();
-    if (!res.ok) throw new Error(json.error ?? res.statusText);
+    if (!res.ok) {
+      submitBtn.disabled = false;
+      skipBtn.disabled = false;
+      submitBtn.textContent = tm('feedbackSubmit');
+      statusEl.textContent = String(json?.error || res.statusText || tm('feedbackError'));
+      statusEl.classList.remove('hidden');
+      return;
+    }
 
     await Promise.allSettled([doMarkPlayed(), doSetScoreDisplayName()]);
     goToRankings();
