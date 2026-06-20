@@ -59,8 +59,8 @@ export function setUserConfigServiceRuntimeDeps(deps = {}) {
 /**
  * Wrap a promise with a timeout that rejects when the duration is exceeded.
  * @template T
- * @param {Promise<T>} promise
- * @param {number} ms
+ * @param {Promise<T>} promise - The promise to race against the timeout.
+ * @param {number} ms - Timeout duration in milliseconds.
  * @returns {Promise<T>}
  */
 function withTimeout(promise, ms) {
@@ -73,7 +73,9 @@ function withTimeout(promise, ms) {
 // ─── Games ────────────────────────────────────────────────────────────────────
 
 /**
- * @returns {Promise<Array<{slug: string, display_name: string, requires_payment: boolean, price_in_cents: number}>>}
+ * List all published games ordered alphabetically by display name.
+ * Returns an empty array when Supabase is not configured.
+ * @returns {Promise<Array<{ slug: string, display_name: string, requires_payment: boolean, price_in_cents: number }>>}
  */
 export async function listGames() {
   if (!runtimeSupabaseUrl || !runtimeSupabaseAnonKey) return [];
@@ -96,10 +98,10 @@ export async function listGames() {
 }
 
 /**
- * Fetch a game (with all its routes ordered by order_index). No sign-in required.
- * Returns null when the game does not exist.
- * @param {string} slug
- * @returns {Promise<{id: string, slug: string, display_name: string, routes: Array} | null>}
+ * Fetch a game with all its routes ordered by `order_index`. No sign-in required.
+ * Returns `null` when the game does not exist.
+ * @param {string} slug - Game slug to look up.
+ * @returns {Promise<{ id: string, slug: string, display_name: string, logo_url: string, requires_payment: boolean, price_in_cents: number, routes: Array } | null>}
  */
 export async function fetchGameWithRoutes(slug) {
   if (!runtimeSupabase) return null;

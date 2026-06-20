@@ -1,16 +1,14 @@
 /**
- * Creates UI helpers for the main game screen.
+ * Create UI helpers for the main game screen.
  *
  * @param {object} deps
- * @param {object} deps.state Shared mutable game state.
- * @param {(key: string, params?: Record<string, unknown>) => string} deps.tm Translation helper.
- * @param {(cents: number) => string} deps.formatEuro Currency formatter.
- * @param {(slug: string) => string} deps.buildRankingsUrl Rankings URL builder.
- * @param {string} deps.slug Current game slug.
- * @param {(lat1: number, lng1: number, lat2: number, lng2: number) => number} deps.distanceMeters Distance helper.
- * @param {object} deps.constants UI-related constants.
- * @param {number} deps.constants.LOCATION_RADIUS_METERS
- * @param {number} deps.constants.MAX_ALLOWED_GPS_ACCURACY_METERS
+ * @param {object} deps.state - Shared mutable game state.
+ * @param {(key: string, params?: Record<string, unknown>) => string} deps.tm - Translation helper.
+ * @param {(cents: number) => string} deps.formatEuro - Currency formatter.
+ * @param {(slug: string) => string} deps.buildRankingsUrl - Rankings URL builder.
+ * @param {string} deps.slug - Current game slug.
+ * @param {(lat1: number, lng1: number, lat2: number, lng2: number) => number} deps.distanceMeters - Haversine distance helper.
+ * @param {{ LOCATION_RADIUS_METERS: number, MAX_ALLOWED_GPS_ACCURACY_METERS: number }} deps.constants - Location radius and GPS accuracy thresholds.
  * @returns {{
  *   getEls: () => Record<string, HTMLElement | null>,
  *   setElements: (els: Record<string, HTMLElement | null>) => void,
@@ -80,8 +78,9 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
   }
 
   /**
-   * Show a temporary score delta toast for positive or negative points.
-   * @param {number} points
+   * Show a temporary score delta toast for the given point value.
+   * Positive values show a gain message; negative values show a penalty message.
+   * @param {number} points - Point delta to display (positive or negative).
    */
   function showScoreToast(points) {
     if (!els.scoreToast || !Number.isFinite(points) || points === 0) return;
@@ -108,10 +107,10 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
   }
 
   /**
-   * Show the payment card with translated copy and button state.
-   * @param {string} messageKey
-   * @param {string} [buttonKey='payButton']
-   * @param {boolean} [hideButton=false]
+   * Show the payment card with translated copy and the correct button state.
+   * @param {string} messageKey - i18n key for the message body.
+   * @param {string} [buttonKey='payButton'] - i18n key for the action button label.
+   * @param {boolean} [hideButton=false] - When `true`, hides the action button (e.g. while polling).
    */
   function showPaymentCard(messageKey, buttonKey = 'payButton', hideButton = false) {
     if (!els.cardPayment || !els.paymentMessage || !els.payAndPlay) return;

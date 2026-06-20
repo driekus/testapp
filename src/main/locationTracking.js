@@ -1,22 +1,22 @@
 /**
- * Creates location tracking handlers for the game.
+ * Create location tracking handlers for the game.
  *
  * @param {object} deps
- * @param {object} deps.state Shared mutable game state.
- * @param {(key: string, params?: Record<string, unknown>) => string} deps.tm Translation helper.
- * @param {() => void} deps.updateUi UI refresh callback.
- * @param {() => void} deps.checkArrival Arrival-check callback.
- * @param {() => void} deps.playDoubleBeep Audio cue callback.
- * @param {Geolocation} deps.geolocation Geolocation interface.
- * @param {(from: object, to: object, options: object) => boolean} deps.isQuickJump Jump-detection helper.
- * @param {(lat1: number, lng1: number, lat2: number, lng2: number) => number} deps.distanceMeters Distance helper.
+ * @param {object} deps.state - Shared mutable game state.
+ * @param {(key: string, params?: Record<string, unknown>) => string} deps.tm - Translation helper.
+ * @param {() => void} deps.updateUi - UI refresh callback.
+ * @param {() => void} deps.checkArrival - Arrival-check callback invoked after each position update.
+ * @param {() => void} deps.playDoubleBeep - Audio cue callback played when the player moves away from the target.
+ * @param {Geolocation} deps.geolocation - Browser Geolocation interface.
+ * @param {(from: object, to: object, options: object) => boolean} deps.isQuickJump - Jump-detection helper.
+ * @param {(lat1: number, lng1: number, lat2: number, lng2: number) => number} deps.distanceMeters - Haversine distance helper.
  * @param {{
  *   MAX_ALLOWED_GPS_ACCURACY_METERS: number,
  *   MAX_SPEED_METERS_PER_SECOND: number,
  *   MAX_JUMP_DISTANCE_METERS: number,
  *   BALANCED_TIMEOUT_MS: number,
  *   HIGH_ACCURACY_TIMEOUT_MS: number,
- * }} deps.constants Location constants.
+ * }} deps.constants - Location-tracking thresholds.
  * @returns {{
  *   handleLocationSuccess: (position: GeolocationPosition) => void,
  *   startWatch: (options: PositionOptions, fallbackToBalanced: boolean) => void,
@@ -43,8 +43,8 @@ export function createLocationTracking({
   } = constants;
 
   /**
-   * Handle successful geolocation updates, validate quality, and trigger arrival checks.
-   * @param {GeolocationPosition} position
+   * Handle a successful geolocation update, validate quality and detect jumps, then trigger arrival checks.
+   * @param {GeolocationPosition} position - Raw position object from the Geolocation API.
    */
   function handleLocationSuccess(position) {
     const candidate = {
@@ -104,9 +104,9 @@ export function createLocationTracking({
   }
 
   /**
-   * Start a geolocation watch and optionally retry with balanced accuracy on timeout.
-   * @param {PositionOptions} options
-   * @param {boolean} fallbackToBalanced
+   * Start a `watchPosition` call and optionally retry with balanced accuracy on high-accuracy timeout.
+   * @param {PositionOptions} options - Geolocation API options to pass to `watchPosition`.
+   * @param {boolean} fallbackToBalanced - Whether to automatically retry with balanced accuracy on timeout.
    */
   function startWatch(options, fallbackToBalanced) {
     state.geoWatchId = geolocation.watchPosition(

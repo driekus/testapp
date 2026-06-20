@@ -1,19 +1,16 @@
 /**
- * Resolves whether the current player can enter a paid game.
+ * Resolve whether the current player can enter a paid game.
+ * Checks a stored token first; if absent, polls for a pending payment request.
+ * Returns `false` and shows the payment card when access cannot be confirmed.
  *
  * @param {object} deps
- * @param {object} deps.state Shared mutable game state.
- * @param {string} deps.slug Current game slug.
- * @param {Window} deps.windowRef Browser window reference.
- * @param {() => void} deps.updateUi UI refresh callback.
- * @param {(messageKey: string, buttonKey?: string, hideButton?: boolean) => void} deps.showPaymentCard Payment card renderer.
- * @param {object} deps.paymentApi Payment helper functions.
- * @param {(slug: string) => string | null} deps.paymentApi.getStoredPaymentToken
- * @param {(slug: string) => void} deps.paymentApi.clearStoredPaymentToken
- * @param {(slug: string, token: string) => Promise<any>} deps.paymentApi.verifyPaymentToken
- * @param {(slug: string, requestToken: string, onPaid: (token: string) => void) => Promise<any>} deps.paymentApi.pollUntilPaid
- * @param {(slug: string, token: string) => void} deps.paymentApi.storePaymentToken
- * @returns {Promise<boolean>} True when access is granted.
+ * @param {object} deps.state - Shared mutable game state.
+ * @param {string} deps.slug - Current game slug.
+ * @param {Window} deps.windowRef - Browser window reference.
+ * @param {() => void} deps.updateUi - UI refresh callback.
+ * @param {(messageKey: string, buttonKey?: string, hideButton?: boolean) => void} deps.showPaymentCard - Renders the payment card with translated copy.
+ * @param {{ getStoredPaymentToken: (slug: string) => string | null, clearStoredPaymentToken: (slug: string) => void, verifyPaymentToken: (slug: string, token: string) => Promise<{ paid: boolean, payment_token: string | null, played: boolean }>, pollUntilPaid: (slug: string, requestToken: string, onPaid: (token: string) => void) => Promise<{ payment_token: string }>, storePaymentToken: (slug: string, token: string) => void }} deps.paymentApi - Payment helper functions.
+ * @returns {Promise<boolean>} `true` when access is granted, `false` otherwise.
  */
 export async function resolvePaymentAccess({
   state,

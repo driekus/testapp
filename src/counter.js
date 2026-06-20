@@ -7,7 +7,7 @@ export function setupCounter(element) {
   let counter = 0;
   /**
    * Update internal counter state and mirror it in the element label.
-   * @param {number} count
+   * @param {number} count - New counter value to display.
    */
   const setCounter = (count) => {
     counter = count;

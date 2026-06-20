@@ -1,8 +1,8 @@
 /**
- * Parse feedback session payload from sessionStorage-like API.
- * @param {{ getItem: (key: string) => string | null }} storage
- * @param {string} key
- * @returns {any | null}
+ * Parse feedback session payload from a sessionStorage-like storage API.
+ * @param {{ getItem: (key: string) => string | null }} storage - Storage object to read from.
+ * @param {string} [key='letter-quest-feedback'] - Storage key to look up.
+ * @returns {Record<string, unknown> | null} Parsed payload, or `null` on missing/invalid data.
  */
 export function parseFeedbackSession(storage, key = 'letter-quest-feedback') {
   try {
@@ -14,8 +14,9 @@ export function parseFeedbackSession(storage, key = 'letter-quest-feedback') {
 }
 
 /**
- * Derive normalized feedback context values from session payload.
- * @param {any} data
+ * Derive normalized feedback context values from a session payload.
+ * @param {Record<string, unknown> | null} data - Parsed feedback session payload.
+ * @returns {{ gameId: string, slug: string, requiresPayment: boolean, paymentToken: string | null, finalScore: number, totalAnswerTimeMs: number, playerId: string, winnerName: string, winnerPhone: string }}
  */
 export function buildFeedbackContext(data) {
   return {
@@ -32,14 +33,16 @@ export function buildFeedbackContext(data) {
 }
 
 /**
- * Build scoreboard name-update operation.
+ * Build the scoreboard display-name update operation for the current play session.
+ * Returns `null` when essential identifiers are missing.
  * @param {object} params
- * @param {boolean} params.requiresPayment
- * @param {string} params.name
- * @param {string} params.gameId
- * @param {string} params.playerId
- * @param {string} params.playerSessionId
- * @param {string | null} params.paymentToken
+ * @param {boolean} params.requiresPayment - Whether the game is a paid game.
+ * @param {string} params.name - Display name to save.
+ * @param {string} params.gameId - UUID of the game.
+ * @param {string} params.playerId - Persistent player identifier.
+ * @param {string} params.playerSessionId - Per-session identifier.
+ * @param {string | null} params.paymentToken - Payment token (paid games only).
+ * @returns {{ mode: 'session' | 'player', payload: object } | null}
  */
 export function buildScoreNameOperation({
   requiresPayment,

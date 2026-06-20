@@ -21,7 +21,8 @@ let runtimeSupabase = supabase;
 
 /**
  * Override Supabase client for tests.
- * @param {{ supabase?: any }} deps
+ * @param {{ supabase?: import('@supabase/supabase-js').SupabaseClient | null }} [deps]
+ * @returns {void}
  */
 export function setSupabaseClientRuntimeDeps(deps = {}) {
   if (Object.prototype.hasOwnProperty.call(deps, 'supabase')) {
@@ -51,8 +52,8 @@ export async function getCurrentUser() {
 /**
  * Sign in an existing user with email and password.
  * Throws when Supabase is not configured or authentication fails.
- * @param {string} email
- * @param {string} password
+ * @param {string} email - User email address.
+ * @param {string} password - User password.
  * @returns {Promise<void>}
  */
 export async function signInWithPassword(email, password) {
@@ -69,8 +70,8 @@ export async function signInWithPassword(email, password) {
 /**
  * Register a new user with email and password.
  * Throws when Supabase is not configured or sign-up fails.
- * @param {string} email
- * @param {string} password
+ * @param {string} email - Email address for the new account.
+ * @param {string} password - Password for the new account.
  * @returns {Promise<void>}
  */
 export async function signUpWithPassword(email, password) {

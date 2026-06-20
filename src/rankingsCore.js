@@ -1,10 +1,10 @@
 /**
- * Render one score row.
+ * Render one score row as a paragraph element.
  * @param {object} deps
- * @param {object} deps.entry
- * @param {(key: string, params?: Record<string, unknown>) => string} deps.tm
- * @param {(tag: string) => HTMLElement} deps.createElement
- * @param {{isBestMine?: boolean, isMine?: boolean, runIndex?: number}} [deps.options]
+ * @param {{ rank: number, display_name?: string, score: number }} deps.entry - Scoreboard entry data.
+ * @param {(key: string, params?: Record<string, unknown>) => string} deps.tm - Translation helper.
+ * @param {(tag: string) => HTMLElement} deps.createElement - DOM element factory.
+ * @param {{ isBestMine?: boolean, isMine?: boolean, runIndex?: number }} [deps.options] - Rendering flags for the current player's rows.
  * @returns {HTMLElement}
  */
 export function renderScoreRow({ entry, tm, createElement, options = {} }) {
@@ -28,16 +28,16 @@ export function renderScoreRow({ entry, tm, createElement, options = {} }) {
 /**
  * Load rankings data and render it into DOM elements.
  * @param {object} deps
- * @param {string} deps.slug
- * @param {string} deps.playerId
- * @param {object} deps.els
- * @param {(key: string, params?: Record<string, unknown>) => string} deps.tm
- * @param {(slug: string) => string} deps.buildRankingsUrl
- * @param {(slug: string) => Promise<any>} deps.fetchGameForPlay
- * @param {(gameId: string) => Promise<void>} deps.loadGameStyles
- * @param {(payload: object) => Promise<any>} deps.fetchScoreboard
- * @param {Window} deps.windowRef
- * @param {(tag: string) => HTMLElement} deps.createElement
+ * @param {string} deps.slug - Game slug to load rankings for.
+ * @param {string} deps.playerId - Persistent player ID for identifying the current player's rows.
+ * @param {object} deps.els - Cached DOM element references for the rankings view.
+ * @param {(key: string, params?: Record<string, unknown>) => string} deps.tm - Translation helper.
+ * @param {(slug: string) => string} deps.buildRankingsUrl - Rankings URL builder.
+ * @param {(slug: string) => Promise<object | null>} deps.fetchGameForPlay - Fetches game config.
+ * @param {(gameId: string) => Promise<void>} deps.loadGameStyles - Applies custom CSS styles.
+ * @param {(payload: object) => Promise<object>} deps.fetchScoreboard - Fetches scoreboard data.
+ * @param {Window} deps.windowRef - Browser window reference (used for navigation).
+ * @param {(tag: string) => HTMLElement} deps.createElement - DOM element factory.
  * @returns {Promise<void>}
  */
 export async function loadRankingsView({

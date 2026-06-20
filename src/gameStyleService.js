@@ -5,7 +5,8 @@ let runtimeDocument = typeof document === 'undefined' ? null : document;
 
 /**
  * Override runtime dependencies (used by tests).
- * @param {{supabase?: any, documentRef?: Document}} deps
+ * @param {{ supabase?: import('@supabase/supabase-js').SupabaseClient | null, documentRef?: Document | null }} [deps]
+ * @returns {void}
  */
 export function setGameStyleServiceRuntimeDeps(deps = {}) {
   if (Object.prototype.hasOwnProperty.call(deps, 'supabase')) {
@@ -17,9 +18,10 @@ export function setGameStyleServiceRuntimeDeps(deps = {}) {
 }
 
 /**
- * Load custom CSS variables for a game from the database
- * If no custom styles exist, defaults are used (from CSS variables)
- * @param {string} gameId - The game UUID
+ * Load and apply custom CSS variables for a game from the `game_styles` table.
+ * Falls back to the default CSS variables when no custom styles are configured.
+ * @param {string} gameId - UUID of the game to load styles for.
+ * @returns {Promise<void>}
  */
 export async function loadGameStyles(gameId) {
   if (!gameId) {
@@ -55,8 +57,9 @@ export async function loadGameStyles(gameId) {
 }
 
 /**
- * Apply CSS custom properties to the root element
- * @param {Object} styleData - The game_styles row from the database
+ * Apply CSS custom properties from a `game_styles` database row to the document root.
+ * @param {Record<string, string>} styleData - The `game_styles` row from the database.
+ * @returns {void}
  */
 function applyCustomStyles(styleData) {
 
@@ -110,9 +113,9 @@ function applyCustomStyles(styleData) {
 }
 
 /**
- * Create default game styles for a new game
- * @param {string} gameId - The game UUID
- * @returns {Promise<Object>} The created game_styles record
+ * Create a default `game_styles` row for a new game.
+ * @param {string} gameId - UUID of the game to create styles for.
+ * @returns {Promise<Record<string, string>>} The created `game_styles` record.
  */
 export async function createDefaultGameStyles(gameId) {
   if (!runtimeSupabase) {

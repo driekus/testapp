@@ -64,6 +64,8 @@ function sanitizePoint(point, index) {
  * Sanitize a route array coming from the database or form.
  * Accepts any length from 1 to MAX_ROUTE_LOCATIONS; falls back to DEFAULT_ROUTE
  * only when the input is not a non-empty array.
+ * @param {unknown} candidateRoute - Raw route value from the database or admin form.
+ * @returns {Array<{ name: string, lat: number, lng: number, letter: string, image_url: string, description: string, question: string, answer: string, max_attempts: number }>}
  */
 export function sanitizeRoute(candidateRoute) {
   if (!Array.isArray(candidateRoute) || candidateRoute.length < 1) {
@@ -84,7 +86,11 @@ export function defaultConfig() {
   };
 }
 
-/** Build a blank route of `length` items, cycling through A-Z for letters. */
+/**
+ * Build a blank route of `length` items, cycling through A-Z for letters.
+ * @param {number} length - Number of location entries to generate.
+ * @returns {Array<{ name: string, lat: number, lng: number, letter: string }>}
+ */
 export function blankRoute(length) {
   return Array.from({ length }, (_, i) => ({
     name: `Location ${i + 1}`,

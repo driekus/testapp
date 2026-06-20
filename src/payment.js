@@ -13,14 +13,14 @@ const euro = new Intl.NumberFormat('nl-NL', {
 /**
  * Build the localStorage key for a game's payment token.
  * @param {string} slug - Game slug.
- * @returns {string}
+ * @returns {string} Namespaced localStorage key.
  */
 export const PAYMENT_KEY = (slug) => `letter-quest-payment-${slug}`;
 
 /**
  * Format an amount in cents as a localized Euro string.
- * @param {number} cents
- * @returns {string} e.g. "€ 2,50"
+ * @param {number} cents - Amount in euro-cents (e.g. `250` → `"€ 2,50"`).
+ * @returns {string} Formatted Euro string, e.g. `"€ 2,50"`.
  */
 export function formatEuro(cents) {
   return euro.format((Number(cents) || 0) / 100);

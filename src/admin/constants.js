@@ -7,10 +7,10 @@ import { getLanguage, t } from '../i18n.js';
 export const language = getLanguage();
 
 /**
- * Translate helper scoped to admin namespace.
- * @param {string} key Translation key.
- * @param {Record<string, string|number>} [params] Optional interpolation params.
- * @returns {string}
+ * Translate helper scoped to the admin namespace.
+ * @param {string} key - Translation key within the `admin` section.
+ * @param {Record<string, string | number>} [params] - Optional interpolation parameters.
+ * @returns {string} Translated, interpolated string.
  */
 export function ta(key, params) {
   return t(language, 'admin', key, params);
@@ -18,8 +18,8 @@ export function ta(key, params) {
 
 /**
  * Build initial in-memory state for the admin app.
- * @param {boolean} hasConfig Whether runtime Supabase config exists.
- * @returns {object}
+ * @param {boolean} hasConfig - Whether runtime Supabase credentials are present.
+ * @returns {{ games: Array, currentGameId: string | null, currentSlug: string | null, currentRequiresPayment: boolean, currentPriceInCents: number, currentGameStyles: object, routes: Array, currentRouteIndex: number, selectedRowIndex: number, map: object | null, markerLayer: object | null, marker: object | null, user: object | null, authStatusMessage: string }}
  */
 export function createInitialState(hasConfig) {
   return {

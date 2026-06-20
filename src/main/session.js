@@ -1,14 +1,14 @@
 /**
- * Creates local session persistence helpers.
+ * Create local session persistence helpers.
  *
  * @param {object} deps
- * @param {string | null} deps.sessionKey Storage key for session payload.
- * @param {Storage} deps.storage Storage implementation (usually window.localStorage).
- * @param {object} deps.state Shared mutable game state.
+ * @param {string | null} deps.sessionKey - localStorage key for the session payload, or `null` to disable persistence.
+ * @param {Storage} deps.storage - Storage implementation (typically `window.localStorage`).
+ * @param {object} deps.state - Shared mutable game state.
  * @returns {{
  *   saveSession: () => void,
  *   clearSession: () => void,
- *   loadSavedSession: () => any,
+ *   loadSavedSession: () => Record<string, unknown> | null,
  * }}
  */
 export function createSessionStore({ sessionKey, storage, state }) {
@@ -53,7 +53,7 @@ export function createSessionStore({ sessionKey, storage, state }) {
 
   /**
    * Read and parse the persisted session snapshot.
-   * @returns {any | null}
+   * @returns {Record<string, unknown> | null} Parsed session object, or `null` when absent or unreadable.
    */
   function loadSavedSession() {
     if (!sessionKey) return null;
