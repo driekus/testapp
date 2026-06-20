@@ -27,6 +27,10 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
   let els = {};
   let scoreToastTimer = null;
 
+  /**
+   * Query and return all cached DOM elements used by the game UI.
+   * @returns {Record<string, HTMLElement | null>}
+   */
   function getEls() {
     return {
       gameTitle: document.querySelector('#game-title'),
@@ -67,10 +71,18 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
     };
   }
 
+  /**
+   * Replace the current element cache.
+   * @param {Record<string, HTMLElement | null>} nextEls
+   */
   function setElements(nextEls) {
     els = nextEls;
   }
 
+  /**
+   * Show a temporary score delta toast for positive or negative points.
+   * @param {number} points
+   */
   function showScoreToast(points) {
     if (!els.scoreToast || !Number.isFinite(points) || points === 0) return;
 
@@ -84,6 +96,7 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
     }, 2200);
   }
 
+  /** Update or hide the paid-game badge based on current game state. */
   function updatePaidBadge() {
     if (!els.paidBadge) return;
     if (!state.requiresPayment) {
@@ -94,6 +107,12 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
     els.paidBadge.classList.remove('hidden');
   }
 
+  /**
+   * Show the payment card with translated copy and button state.
+   * @param {string} messageKey
+   * @param {string} [buttonKey='payButton']
+   * @param {boolean} [hideButton=false]
+   */
   function showPaymentCard(messageKey, buttonKey = 'payButton', hideButton = false) {
     if (!els.cardPayment || !els.paymentMessage || !els.payAndPlay) return;
     els.cardPayment.classList.remove('hidden');
@@ -103,6 +122,7 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
     els.payAndPlay.classList.toggle('hidden', hideButton);
   }
 
+  /** Re-render the main game UI for the current state snapshot. */
   function updateUi() {
     if (!els.cardPayment) return;
 

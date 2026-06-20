@@ -42,6 +42,10 @@ export function createLocationTracking({
     HIGH_ACCURACY_TIMEOUT_MS,
   } = constants;
 
+  /**
+   * Handle successful geolocation updates, validate quality, and trigger arrival checks.
+   * @param {GeolocationPosition} position
+   */
   function handleLocationSuccess(position) {
     const candidate = {
       latitude: position.coords.latitude,
@@ -99,6 +103,11 @@ export function createLocationTracking({
     updateUi();
   }
 
+  /**
+   * Start a geolocation watch and optionally retry with balanced accuracy on timeout.
+   * @param {PositionOptions} options
+   * @param {boolean} fallbackToBalanced
+   */
   function startWatch(options, fallbackToBalanced) {
     state.geoWatchId = geolocation.watchPosition(
       handleLocationSuccess,
@@ -118,6 +127,7 @@ export function createLocationTracking({
     );
   }
 
+  /** Start tracking after guard checks and initial status updates. */
   function startLocationTracking() {
     if (!geolocation) {
       state.statusMessage = tm('geolocationUnsupported');

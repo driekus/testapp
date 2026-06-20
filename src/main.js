@@ -36,6 +36,7 @@ const HIGH_ACCURACY_TIMEOUT_MS = 20000;
 const BALANCED_TIMEOUT_MS = 30000;
 
 const language = getLanguage();
+/** Shortcut for translating keys from the `main` section in gameplay UI. */
 const tm = (key, params) => t(language, 'main', key, params);
 
 // Read slug from URL path: "/amsterdam-tour" → "amsterdam-tour"
@@ -85,6 +86,10 @@ const state = {
 
 // ─── Translations ───────────────────────────────────────────────────────────
 
+/**
+ * Apply translated text/placeholder content for i18n-marked elements within a root node.
+ * @param {ParentNode} root
+ */
 function applyTranslations(root) {
   root.querySelectorAll('[data-i18n]').forEach((el) => {
     el.textContent = tm(el.dataset.i18n);
@@ -96,6 +101,10 @@ function applyTranslations(root) {
 
 // ─── Lobby ─────────────────────────────────────────────────────────────────
 
+/**
+ * Render the game lobby list with free/paid badges.
+ * @param {Array<{slug: string, display_name: string, requires_payment?: boolean, price_in_cents?: number}>} games
+ */
 function renderLobby(games) {
   const gameList = document.querySelector('#game-list');
   gameList.replaceChildren();
@@ -124,6 +133,10 @@ function renderLobby(games) {
   }
 }
 
+/**
+ * Show the lobby view and load available games.
+ * @returns {Promise<void>}
+ */
 async function showLobby() {
   const lobby = document.querySelector('#lobby');
   applyTranslations(lobby);
@@ -165,6 +178,10 @@ const {
   updateUi,
 } = uiController;
 
+/**
+ * Append the next location when it is not a duplicate of the current tail.
+ * @param {{lat: number, lng: number} | null | undefined} next
+ */
 function pushNextLocation(next) {
   if (!next) return;
   const last = state.route[state.route.length - 1];
@@ -189,6 +206,7 @@ const {
 
 let audioCtx = null;
 
+/** Play a short positive three-note sound cue. */
 function playHappySound() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -211,12 +229,17 @@ function playHappySound() {
   });
 }
 
+/** Play a double-beep warning cue. */
 function playDoubleBeep() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
   const beepDuration = 0.25;
   const pauseBetween = 0.4;
 
+  /**
+   * Play a single beep at a scheduled AudioContext time.
+   * @param {number} startTime
+   */
   function beep(startTime) {
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
@@ -237,10 +260,15 @@ function playDoubleBeep() {
 
 // ─── Game logic ─────────────────────────────────────────────────────────────
 
+/**
+ * Compute remaining anti-duplicate cooldown before a new letter can be granted.
+ * @returns {number}
+ */
 function remainingCooldownMs() {
   return Math.max(0, LETTER_COOLDOWN_MS - (Date.now() - state.lastLetterGrantedAt));
 }
 
+/** Evaluate current position and update state when a target is reached. */
 function checkArrival() {
   if (state.pendingLetter || state.pendingQuestion || state.checking || !state.userPosition || state.routeComplete) return;
 
@@ -303,10 +331,21 @@ const { startLocationTracking } = createLocationTracking({
   },
 });
 
+/**
+ * Build an absolute Edge Function URL.
+ * @param {string} name
+ * @returns {Promise<string>}
+ */
 async function edgeFunctionUrl(name) {
   return `${SUPABASE_URL}/functions/v1/${name}`;
 }
 
+/**
+ * Record a score/progress event and reconcile returned score/time values.
+ * @param {string} eventType
+ * @param {object} [extra={}]
+ * @returns {Promise<void>}
+ */
 async function recordProgressEvent(eventType, extra = {}) {
   if (!state.gameId || !state.playerSessionId || !state.currentRouteId) return;
 
@@ -338,6 +377,10 @@ async function recordProgressEvent(eventType, extra = {}) {
   }
 }
 
+/**
+ * Confirm location arrival with the backend and stage the pending letter.
+ * @returns {Promise<void>}
+ */
 async function confirmArrival() {
   state.checking = true;
   state.statusMessage = tm('checking');
@@ -372,6 +415,10 @@ async function confirmArrival() {
   updateUi();
 }
 
+/**
+ * Submit the current answer for a question-gated location.
+ * @returns {Promise<void>}
+ */
 async function submitAnswer() {
   const currentTarget = state.route[state.currentLocationIndex];
   if (!state.pendingQuestion || !currentTarget || state.checking) return;
@@ -428,6 +475,10 @@ async function submitAnswer() {
   updateUi();
 }
 
+/**
+ * Finalize the current location and transition to next location/route/end state.
+ * @param {string | null} [letter=null]
+ */
 function completeCurrentLocation(letter = null) {
   if (letter) state.collectedLetters.push(letter);
   state.pendingLetter = null;
@@ -477,11 +528,16 @@ function completeCurrentLocation(letter = null) {
   updateUi();
 }
 
+/** Confirm the currently pending letter and advance progress. */
 function confirmLetter() {
   if (!state.pendingLetter) return;
   completeCurrentLocation(state.pendingLetter);
 }
 
+/**
+ * Skip the current question, apply the score penalty server-side, and continue.
+ * @returns {Promise<void>}
+ */
 async function skipQuestion() {
   const currentTarget = state.route[state.currentLocationIndex];
   if (!state.pendingQuestion || !currentTarget || state.checking) return;
@@ -522,6 +578,10 @@ async function skipQuestion() {
   updateUi();
 }
 
+/**
+ * Initialize and start the next route in a multi-route game.
+ * @returns {Promise<void>}
+ */
 async function startNextRoute() {
   state.currentRouteIndex += 1;
   const nextRoute = state.gameRoutes[state.currentRouteIndex];
@@ -552,6 +612,10 @@ async function startNextRoute() {
 
 // ─── Config loading ─────────────────────────────────────────────────────────
 
+/**
+ * Load game config, payment state, saved progress, and initial UI state.
+ * @returns {Promise<void>}
+ */
 async function loadGame() {
   state.configStatus = tm('configLoading');
   let shouldAutoResumeTracking = false;

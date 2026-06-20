@@ -1,5 +1,12 @@
+/** localStorage key used to persist the player's chosen UI language. */
 const LANGUAGE_STORAGE_KEY = 'letter-quest-language';
 
+/**
+ * Nested translation table keyed first by locale code (`en` | `nl`) and then
+ * by section (`main` | `admin`).  Each leaf value is a message string that may
+ * contain `{placeholder}` tokens consumed by {@link interpolate}.
+ * @type {Record<string, Record<string, Record<string, string>>>}
+ */
 const translations = {
   en: {
     main: {
@@ -503,10 +510,23 @@ const translations = {
   },
 };
 
+/**
+ * Replace every `{key}` placeholder in `template` with the matching value from
+ * `params`, converting the replacement to a string.  Unknown placeholders are
+ * replaced with an empty string.
+ * @param {string} template - String containing zero or more `{key}` tokens.
+ * @param {Record<string, string | number>} [params={}] - Replacement values.
+ * @returns {string} Interpolated string.
+ */
 function interpolate(template, params = {}) {
   return template.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''));
 }
 
+/**
+ * Read the persisted UI language from localStorage.
+ * Returns `'nl'` when no valid value is stored (default language).
+ * @returns {'en' | 'nl'}
+ */
 export function getLanguage() {
   const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
   if (stored === 'en' || stored === 'nl') {
@@ -516,11 +536,26 @@ export function getLanguage() {
   return 'nl';
 }
 
+/**
+ * Persist the player's chosen UI language to localStorage.
+ * Any value other than `'nl'` is normalised to `'en'`.
+ * @param {string} language - Desired locale code (`'en'` or `'nl'`).
+ */
 export function setLanguage(language) {
   const normalized = language === 'nl' ? 'nl' : 'en';
   localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
 }
 
+/**
+ * Look up a translation string and interpolate any `{placeholder}` tokens.
+ * Falls back first to the English translation and then to the raw `key` when
+ * the requested entry is missing.
+ * @param {'en' | 'nl'} language - Active locale code.
+ * @param {'main' | 'admin'} section - Translation section to look up.
+ * @param {string} key - Message key within the section.
+ * @param {Record<string, string | number>} [params={}] - Placeholder values.
+ * @returns {string} Localised, interpolated message.
+ */
 export function t(language, section, key, params = {}) {
   const lang = language === 'nl' ? 'nl' : 'en';
   const table = translations[lang]?.[section] || translations.en[section];

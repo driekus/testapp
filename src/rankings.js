@@ -6,6 +6,7 @@ import { fetchGameForPlay } from './userConfigService.js';
 import { loadRankingsView } from './rankingsCore.js';
 
 const language = getLanguage();
+/** Shortcut for translating keys from the `main` section in rankings view. */
 const tm = (key, params) => t(language, 'main', key, params);
 
 const params = new URLSearchParams(window.location.search);

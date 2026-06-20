@@ -4,6 +4,11 @@ export const DEFAULT_ROUTE_LENGTH = 5;
 /** Hard upper limit accepted from the database / admin form. */
 export const MAX_ROUTE_LOCATIONS = 100;
 
+/**
+ * Built-in sample route used as a fallback when no Supabase route is configured.
+ * Each entry contains a name, WGS-84 coordinates and a single A-Z letter.
+ * @type {Array<{ name: string, lat: number, lng: number, letter: string }>}
+ */
 export const DEFAULT_ROUTE = [
   { name: 'Start Gate',   lat: 52.3676, lng: 4.9041, letter: 'S' },
   { name: 'Canal Bridge', lat: 52.3702, lng: 4.8952, letter: 'C' },
@@ -15,6 +20,13 @@ export const DEFAULT_ROUTE = [
 // Fallback values for locations beyond DEFAULT_ROUTE's length
 const FALLBACK_POINT = { lat: 52.3676, lng: 4.9041, letter: 'A' };
 
+/**
+ * Sanitize and normalize a location letter value.
+ * Returns a single uppercase A-Z character, falling back to the default route or fallback point.
+ * @param {*} value - Raw letter value from input.
+ * @param {number} index - Location index used for fallback lookup.
+ * @returns {string} Single uppercase letter.
+ */
 function sanitizeLetter(value, index) {
   const normalized = String(value || '').toUpperCase().replace(/[^A-Z]/g, '');
   if (normalized) return normalized.slice(0, 1);
@@ -22,6 +34,12 @@ function sanitizeLetter(value, index) {
   return fallback.letter;
 }
 
+/**
+ * Sanitize a single route point, filling missing or invalid fields with defaults.
+ * @param {object} point - Raw point object from the database or form.
+ * @param {number} index - Index used to look up fallback values.
+ * @returns {{ name: string, lat: number, lng: number, letter: string, image_url: string, description: string, question: string, answer: string, max_attempts: number }}
+ */
 function sanitizePoint(point, index) {
   const fallback = DEFAULT_ROUTE[index] ?? FALLBACK_POINT;
   const lat = Number(point?.lat);
@@ -56,6 +74,10 @@ export function sanitizeRoute(candidateRoute) {
     .map((point, index) => sanitizePoint(point, index));
 }
 
+/**
+ * Return a default configuration object with the first DEFAULT_ROUTE_LENGTH locations.
+ * @returns {{ route: Array<{ name: string, lat: number, lng: number, letter: string }> }}
+ */
 export function defaultConfig() {
   return {
     route: DEFAULT_ROUTE.slice(0, DEFAULT_ROUTE_LENGTH).map((p) => ({ ...p })),

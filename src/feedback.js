@@ -7,6 +7,7 @@ import { buildRankingsUrl, setScoreDisplayName, setScoreDisplayNameBySession } f
 import { buildFeedbackContext, buildScoreNameOperation, parseFeedbackSession } from './feedbackCore.js';
 
 const language = getLanguage();
+/** Shortcut for translating keys from the `main` section in feedback view. */
 const tm = (key, params) => t(language, 'main', key, params);
 
 // ─── Session data ─────────────────────────────────────────────────────────────
@@ -61,12 +62,17 @@ document.querySelector('#score-summary-time').classList.toggle('hidden', totalAn
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 
+/** Navigate to the rankings page for the current game slug. */
 function goToRankings() {
   window.location.href = buildRankingsUrl(slug);
 }
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────
 
+/**
+ * Mark a paid token as played once feedback flow is complete.
+ * @returns {Promise<void>}
+ */
 async function doMarkPlayed() {
   if (!requiresPayment || !paymentToken || !slug) return;
   try {
@@ -76,6 +82,11 @@ async function doMarkPlayed() {
   }
 }
 
+/**
+ * Persist the winner/player display name to scoreboard rows.
+ * Uses session-scoped updates for paid games and player-scoped updates for free games.
+ * @returns {Promise<void>}
+ */
 async function doSetScoreDisplayName() {
   // Set display name for ALL games (both paid and free).
   // For paid games: use player_session_id (unique per play session) to avoid overwriting other plays

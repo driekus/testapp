@@ -56,6 +56,13 @@ export function setUserConfigServiceRuntimeDeps(deps = {}) {
   }
 }
 
+/**
+ * Wrap a promise with a timeout that rejects when the duration is exceeded.
+ * @template T
+ * @param {Promise<T>} promise
+ * @param {number} ms
+ * @returns {Promise<T>}
+ */
 function withTimeout(promise, ms) {
   const timeout = new Promise((_, reject) =>
     setTimeout(() => reject(new Error(`Supabase request timed out after ${ms}ms`)), ms),
@@ -335,7 +342,10 @@ export async function deleteRoute(routeId) {
   if (error) throw error;
 }
 
-// kept for backwards compat with admin.js delete-game flow
+/**
+ * Backwards-compatible export used by older admin delete-game flows.
+ * Alias of {@link deleteGame}.
+ */
 export { deleteGame as deleteGameBySlug };
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
@@ -343,20 +353,11 @@ export { deleteGame as deleteGameBySlug };
 const IMAGE_BUCKET = 'location-images';
 
 /**
- * Upload an image for a specific location and return its public URL.
- * Path: <gameSlug>/<routeId>/<locationIndex>-<timestamp>.<ext>
- * @param {File} file
- * @param {string} gameSlug
- * @param {string} routeId  uuid of the route row (or 'new' before first save)
- * @param {number} locationIndex
- * @returns {Promise<string>} public URL
- */
-/**
  * Upload a game logo and return its public URL.
- * Path: logos/<gameSlug>/logo-<timestamp>.<ext>
+ * Path: `logos/<gameSlug>/logo-<timestamp>.<ext>`
  * @param {File} file
  * @param {string} gameSlug
- * @returns {Promise<string>} public URL
+ * @returns {Promise<string>} Public URL of the uploaded logo.
  */
 export async function uploadGameLogo(file, gameSlug) {
   if (!runtimeSupabase) throw new Error('Supabase is not configured.');
@@ -377,6 +378,15 @@ export async function uploadGameLogo(file, gameSlug) {
   return publicUrl;
 }
 
+/**
+ * Upload an image for a specific route location and return its public URL.
+ * Path: `<gameSlug>/<routeId>/<locationIndex>-<timestamp>.<ext>`
+ * @param {File} file
+ * @param {string} gameSlug
+ * @param {string} routeId - UUID of the route row, or `'new'` before the first save.
+ * @param {number} locationIndex - Zero-based index of the location within the route.
+ * @returns {Promise<string>} Public URL of the uploaded image.
+ */
 export async function uploadLocationImage(file, gameSlug, routeId, locationIndex) {
   if (!runtimeSupabase) throw new Error('Supabase is not configured.');
 

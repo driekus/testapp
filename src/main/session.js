@@ -12,6 +12,7 @@
  * }}
  */
 export function createSessionStore({ sessionKey, storage, state }) {
+  /** Persist the active game session snapshot to storage. */
   function saveSession() {
     if (!sessionKey) return;
     try {
@@ -40,6 +41,7 @@ export function createSessionStore({ sessionKey, storage, state }) {
     }
   }
 
+  /** Remove the persisted session snapshot from storage. */
   function clearSession() {
     if (!sessionKey) return;
     try {
@@ -49,6 +51,10 @@ export function createSessionStore({ sessionKey, storage, state }) {
     }
   }
 
+  /**
+   * Read and parse the persisted session snapshot.
+   * @returns {any | null}
+   */
   function loadSavedSession() {
     if (!sessionKey) return null;
     try {

@@ -7,6 +7,7 @@ import { fetchGameForPlay } from './userConfigService.js';
 import { buildWinnerSavePayload, getWinnerSlug, validateWinnerFields } from './winnerCore.js';
 
 const language = getLanguage();
+/** Shortcut for translating keys from the `main` section in winner view. */
 const tm = (key, params) => t(language, 'main', key, params);
 
 // ─── Resolve slug ────────────────────────────────────────────────────────────
@@ -50,6 +51,10 @@ saveBtn.textContent = tm('winnerSaveBtn');
 
 // ─── Load game styles + logo ──────────────────────────────────────────────────
 
+/**
+ * Load per-game styles and logo for the winner details page.
+ * @returns {Promise<void>}
+ */
 async function loadPageStyles() {
   try {
     const game = await fetchGameForPlay(slug);
@@ -69,6 +74,10 @@ loadPageStyles();
 
 // ─── Background token validation ──────────────────────────────────────────────
 
+/**
+ * Re-validate the payment token in the background and redirect if invalid.
+ * @returns {Promise<void>}
+ */
 async function checkTokenInBackground() {
   try {
     const payment = await verifyPaymentToken(slug, paymentToken);
