@@ -27,7 +27,7 @@ import {
 } from '../userConfigService.js';
 import { setLanguage } from '../i18n.js';
 import { createInitialState, DEFAULT_GAME_STYLES, language, STYLE_FIELDS, ta } from './constants.js';
-import { bindBackToGameLink, getEls } from './dom.js';
+import { getEls } from './dom.js';
 import { createCoreSections } from './sections/coreSections.js';
 import { createRouteEditorSections } from './sections/routeEditorSections.js';
 import { createActionsSections } from './sections/actionsSections.js';
@@ -36,7 +36,6 @@ import { createActionsSections } from './sections/actionsSections.js';
 
 const state = createInitialState(hasSupabaseConfig);
 const els = getEls();
-bindBackToGameLink();
 
 // --- Core sections (utilities, auth UI, game selector) ---
 

@@ -50,16 +50,4 @@ export function getEls() {
   };
 }
 
-/**
- * Wire the back-to-game link behavior.
- * @returns {void}
- */
-export function bindBackToGameLink() {
-  const backToGameLink = document.querySelector('#back-to-game');
-  if (!backToGameLink) return;
-  backToGameLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    window.location.replace(`/?refresh=${Date.now()}`);
-  });
-}
 
