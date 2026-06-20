@@ -29,14 +29,13 @@ export async function resolvePaymentAccess({
   const storedToken = paymentApi.getStoredPaymentToken(slug);
   let alreadyPlayed = false;
 
-  updateUi();
-
   if (storedToken) {
     try {
       const payment = await paymentApi.verifyPaymentToken(slug, storedToken);
       if (payment.paid && payment.payment_token && !payment.played) {
         state.paymentToken = payment.payment_token;
         state.paymentReady = true;
+        updateUi();
         return true;
       }
       alreadyPlayed = Boolean(payment.played);
@@ -55,6 +54,7 @@ export async function resolvePaymentAccess({
       });
       state.paymentToken = payment.payment_token;
       state.paymentReady = true;
+      updateUi();
       windowRef.history.replaceState({}, '', `/${slug}`);
       return true;
     } catch {

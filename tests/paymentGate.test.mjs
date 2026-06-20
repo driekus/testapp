@@ -104,6 +104,7 @@ test('starts payment polling flow and stores token from callback', async () => {
   const state = { paymentReady: true, paymentToken: null };
   const stored = [];
   const cards = [];
+  let updateCount = 0;
   const win = createWindowRef('?payment_request_token=req-123');
 
   const paymentApi = {
@@ -123,7 +124,9 @@ test('starts payment polling flow and stores token from callback', async () => {
     state,
     slug: 'slug',
     windowRef: win,
-    updateUi() {},
+    updateUi() {
+      updateCount += 1;
+    },
     showPaymentCard(...args) {
       cards.push(args);
     },
@@ -133,6 +136,7 @@ test('starts payment polling flow and stores token from callback', async () => {
   assert.equal(allowed, true);
   assert.equal(state.paymentToken, 'payment-token');
   assert.equal(state.paymentReady, true);
+  assert.equal(updateCount, 1);
   assert.deepEqual(stored, [{ slug: 'slug', token: 'cached-token' }]);
   assert.equal(cards[0][0], 'paymentPending');
   assert.equal(win.replaceCalls.length, 1);
