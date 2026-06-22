@@ -26,7 +26,7 @@ import { createUiController } from './main/ui.js';
 import { createSessionStore } from './main/session.js';
 import { resolvePaymentAccess } from './main/paymentGate.js';
 import { createLocationTracking } from './main/locationTracking.js';
-import { downloadGameOffline, isGameCached, loadCachedGame, getCacheExpiryString } from './main/offlineSync.js';
+import { downloadGameOffline, loadCachedGame } from './main/offlineSync.js';
 
 const LOCATION_RADIUS_METERS = 5;
 const MAX_ALLOWED_GPS_ACCURACY_METERS = 11;

@@ -28,7 +28,9 @@ Deno.serve(async (req) => {
       .eq('slug', slug)
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      return Response.json({ error: error.message }, { status: 500, headers: CORS });
+    }
     if (!data) return Response.json({ game: null }, { headers: CORS });
 
     const sorted = (data.routes ?? []).sort((a: any, b: any) => a.order_index - b.order_index);
