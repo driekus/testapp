@@ -5,6 +5,7 @@ import { loadGameStyles } from './gameStyleService.js';
 import { markPlayed } from './payment.js';
 import { buildRankingsUrl, setScoreDisplayName, setScoreDisplayNameBySession } from './scoreService.js';
 import { buildFeedbackContext, buildScoreNameOperation, parseFeedbackSession } from './feedbackCore.js';
+import { buildFeedbackPageCopy, buildFeedbackSubmitPayload, resolveFeedbackError } from './feedbackPageCore.js';
 
 const language = getLanguage();
 /** Shortcut for translating keys from the `main` section in feedback view. */
@@ -42,23 +43,19 @@ if (data?.logoUrl) {
   logo.classList.remove('hidden');
 }
 
-document.querySelector('#feedback-title').textContent = data?.displayName
-  ? `🎉 ${data.displayName}`
-  : tm('feedbackTitle');
-document.querySelector('#feedback-subtitle').textContent = tm('feedbackSubtitle');
-document.querySelector('#letters-label').textContent = tm('feedbackLetters');
-document.querySelector('#collected-letters').textContent =
-  data?.letters?.length ? data.letters.join('  ') : '—';
-document.querySelector('#feedback-prompt').textContent = tm('feedbackPrompt');
-document.querySelector('#feedback-text').placeholder = tm('feedbackPlaceholder');
-document.querySelector('#submit-feedback-btn').textContent = tm('feedbackSubmit');
-document.querySelector('#skip-feedback-btn').textContent = tm('feedbackSkip');
-document.querySelector('#score-summary-title').textContent = tm('scoreSummaryTitle');
-document.querySelector('#score-summary-points').textContent = tm('scoreSummaryPoints', { score: finalScore });
-document.querySelector('#score-summary-time').textContent = tm('scoreSummaryTime', {
-  seconds: (totalAnswerTimeMs / 1000).toFixed(2),
-});
-document.querySelector('#score-summary-time').classList.toggle('hidden', totalAnswerTimeMs <= 0);
+const copy = buildFeedbackPageCopy(tm, data, finalScore, totalAnswerTimeMs);
+document.querySelector('#feedback-title').textContent = copy.title;
+document.querySelector('#feedback-subtitle').textContent = copy.subtitle;
+document.querySelector('#letters-label').textContent = copy.lettersLabel;
+document.querySelector('#collected-letters').textContent = copy.lettersValue;
+document.querySelector('#feedback-prompt').textContent = copy.prompt;
+document.querySelector('#feedback-text').placeholder = copy.placeholder;
+document.querySelector('#submit-feedback-btn').textContent = copy.submitLabel;
+document.querySelector('#skip-feedback-btn').textContent = copy.skipLabel;
+document.querySelector('#score-summary-title').textContent = copy.scoreTitle;
+document.querySelector('#score-summary-points').textContent = copy.scorePoints;
+document.querySelector('#score-summary-time').textContent = copy.scoreTime;
+document.querySelector('#score-summary-time').classList.toggle('hidden', copy.hideScoreTime);
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 
@@ -137,14 +134,14 @@ submitBtn.addEventListener('click', async () => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       },
-      body: JSON.stringify({ slug, message }),
+      body: JSON.stringify(buildFeedbackSubmitPayload(slug, message)),
     });
     const json = await res.json();
     if (!res.ok) {
       submitBtn.disabled = false;
       skipBtn.disabled = false;
       submitBtn.textContent = tm('feedbackSubmit');
-      statusEl.textContent = String(json?.error || res.statusText || tm('feedbackError'));
+      statusEl.textContent = resolveFeedbackError(json, res.statusText, tm('feedbackError'));
       statusEl.classList.remove('hidden');
       return;
     }

@@ -1,1 +1,3 @@
-import './admin/boot.js';
+import { startAdminEntry } from './admin/entry.js';
+
+void startAdminEntry();

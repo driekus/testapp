@@ -8,6 +8,12 @@ import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
 import { fromLonLat, toLonLat } from 'ol/proj';
 import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
+import {
+  clampLocationCount,
+  normalizeRouteLetter,
+  resizeRoutePoints,
+  validateCoordinateRange,
+} from './routeEditorCore.js';
 
 /**
  * Create route editor, image/logo upload, map, and game loader section handlers.
@@ -245,9 +251,7 @@ export function createRouteEditorSections({
    * @param {number} index
    */
   function validateCoordinate(lat, lng, index) {
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error(ta('rowLatLngNumbers', { row: index + 1 }));
-    if (lat < -90 || lat > 90) throw new Error(ta('rowLatRange', { row: index + 1 }));
-    if (lng < -180 || lng > 180) throw new Error(ta('rowLngRange', { row: index + 1 }));
+    validateCoordinateRange(lat, lng, index, ta);
   }
 
   /**
@@ -256,9 +260,7 @@ export function createRouteEditorSections({
    * @param {number} index
    */
   function validateLetter(letter, index) {
-    const n = String(letter || '').toUpperCase().replace(/[^A-Z]/g, '');
-    if (!n) throw new Error(ta('rowLetterRange', { row: index + 1 }));
-    return n.slice(0, 1);
+    return normalizeRouteLetter(letter, index, ta);
   }
 
   /**
@@ -483,24 +485,14 @@ export function createRouteEditorSections({
    */
   function handleLocationCountChange() {
     const raw = Number(els.routeLocationCount.value);
-    const newCount = Math.max(1, Math.min(MAX_ROUTE_LOCATIONS, Math.floor(raw) || 1));
+    const newCount = clampLocationCount(raw, MAX_ROUTE_LOCATIONS);
     els.routeLocationCount.value = newCount;
 
     let current;
     try { current = collectRouteFromInputs(); } catch { current = state.routes[state.currentRouteIndex]?.route ?? []; }
 
-    if (newCount === current.length) return;
-
-    let next;
-    if (newCount > current.length) {
-      const extra = blankRoute(newCount - current.length).map((p, i) => ({
-        ...p,
-        letter: String.fromCharCode(65 + ((current.length + i) % 26)),
-      }));
-      next = [...current, ...extra];
-    } else {
-      next = current.slice(0, newCount);
-    }
+    const next = resizeRoutePoints(current, newCount, blankRoute);
+    if (next === current) return;
     syncFormFromRoute(next);
   }
 

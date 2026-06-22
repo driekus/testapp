@@ -27,6 +27,12 @@ import { createSessionStore } from './main/session.js';
 import { resolvePaymentAccess } from './main/paymentGate.js';
 import { createLocationTracking } from './main/locationTracking.js';
 import { downloadGameOffline, loadCachedGame } from './main/offlineSync.js';
+import {
+  appendNextLocation,
+  computeRemainingCooldownMs,
+  normalizeRoute,
+  shouldAutoResumeTracking as shouldAutoResumeTrackingFromState,
+} from './main/mainCore.js';
 
 const LOCATION_RADIUS_METERS = 5;
 const MAX_ALLOWED_GPS_ACCURACY_METERS = 11;
@@ -187,10 +193,7 @@ const {
  * @param {{lat: number, lng: number} | null | undefined} next
  */
 function pushNextLocation(next) {
-  if (!next) return;
-  const last = state.route[state.route.length - 1];
-  if (last?.lat === next.lat && last?.lng === next.lng) return;
-  state.route.push(next);
+  appendNextLocation(state.route, next);
 }
 
 // ─── Session persistence ─────────────────────────────────────────────────────
@@ -269,7 +272,7 @@ function playDoubleBeep() {
  * @returns {number}
  */
 function remainingCooldownMs() {
-  return Math.max(0, LETTER_COOLDOWN_MS - (Date.now() - state.lastLetterGrantedAt));
+  return computeRemainingCooldownMs(state.lastLetterGrantedAt, Date.now(), LETTER_COOLDOWN_MS);
 }
 
 /** Evaluate current position and update state when a target is reached. */
@@ -784,9 +787,7 @@ async function loadGame() {
           state.currentLocationIndex = saved.currentLocationIndex;
           state.collectedLetters = saved.collectedLetters ?? [];
           state.pendingLetter = saved.pendingLetter ?? null;
-          state.route = saved.route.filter((loc, i, arr) =>
-            i === 0 || !(arr[i - 1].lat === loc.lat && arr[i - 1].lng === loc.lng),
-          );
+          state.route = normalizeRoute(saved.route);
           state.routeComplete = saved.routeComplete ?? false;
           state.lastLetterGrantedAt = saved.lastLetterGrantedAt ?? 0;
           state.playerId = saved.playerId || state.playerId;
@@ -800,10 +801,7 @@ async function loadGame() {
           // Restored sessions should not re-show the free-name gate.
           state.nameConfirmed = true;
 
-          shouldAutoResumeTracking =
-            state.currentLocationIndex > 0 ||
-            state.collectedLetters.length > 0 ||
-            state.routeComplete;
+          shouldAutoResumeTracking = shouldAutoResumeTrackingFromState(state);
         } else {
           state.gameRoutes = game.routes;
           state.displayName = game.display_name;

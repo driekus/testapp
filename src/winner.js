@@ -5,6 +5,7 @@ import { getStoredPaymentToken, clearStoredPaymentToken, verifyPaymentToken } fr
 import { loadGameStyles } from './gameStyleService.js';
 import { fetchGameForPlay } from './userConfigService.js';
 import { buildWinnerSavePayload, getWinnerSlug, validateWinnerFields } from './winnerCore.js';
+import { resolveWinnerAccess, resolveWinnerSaveError, storeWinnerDetails } from './winnerPageCore.js';
 
 const language = getLanguage();
 /** Shortcut for translating keys from the `main` section in winner view. */
@@ -13,18 +14,11 @@ const tm = (key, params) => t(language, 'main', key, params);
 // ─── Resolve slug ────────────────────────────────────────────────────────────
 
 const slug = getWinnerSlug(window.location.search);
-
-if (!slug) {
-  window.location.replace('/');
-  throw new Error('no slug');
-}
-
 const paymentToken = getStoredPaymentToken(slug);
-
-// No payment token → back to game (payment wall will handle it)
-if (!paymentToken) {
-  window.location.replace(`/${slug}`);
-  throw new Error('no token');
+const winnerAccess = resolveWinnerAccess({ slug, paymentToken });
+if (!winnerAccess.ok) {
+  window.location.replace(winnerAccess.redirectTo);
+  throw new Error(winnerAccess.error);
 }
 
 // Note: winner details are NOT persisted in localStorage.
@@ -125,16 +119,14 @@ saveBtn.addEventListener('click', async () => {
     if (!res.ok) {
       saveBtn.disabled = false;
       saveBtn.textContent = tm('winnerSaveBtn');
-      statusEl.textContent = String(json?.error || res.statusText || tm('winnerSaveError'));
+      statusEl.textContent = resolveWinnerSaveError(json, res.statusText, tm('winnerSaveError'));
       statusEl.classList.remove('hidden');
       return;
     }
 
      // Pass name+phone to the game session via sessionStorage
      // (game will include these in feedback sessionStorage when game ends)
-     try {
-       sessionStorage.setItem('letter-quest-winner-details', JSON.stringify({ name, phone }));
-     } catch { /* ignore */ }
+      storeWinnerDetails(sessionStorage, { name, phone });
 
      window.location.replace(`/${slug}`);
   } catch {
