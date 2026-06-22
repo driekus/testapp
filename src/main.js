@@ -93,6 +93,7 @@ const state = {
   lastScoreDelta: 0,
   totalAnswerTimeMs: 0,
   questionStartedAt: 0,
+  sessionRestored: false,   // true when loadGame restored a saved localStorage session
 };
 
 // ─── Translations ───────────────────────────────────────────────────────────
@@ -777,6 +778,7 @@ async function loadGame() {
         state.totalAnswerTimeMs = 0;
         state.questionStartedAt = 0;
         state.statusMessage = tm('tapToBegin');
+        state.sessionRestored = false;
       } else {
         const saved = loadSavedSession();
         const liveIds = game.routes.map((r) => r.id).join(',');
@@ -805,6 +807,7 @@ async function loadGame() {
           state.statusMessage = tm('sessionRestored');
           // Restored sessions should not re-show the free-name gate.
           state.nameConfirmed = true;
+          state.sessionRestored = true;
 
           shouldAutoResumeTracking = shouldAutoResumeTrackingFromState(state);
         } else {
@@ -825,6 +828,10 @@ async function loadGame() {
           state.totalAnswerTimeMs = 0;
           state.questionStartedAt = 0;
           state.statusMessage = tm('tapToBegin');
+          state.sessionRestored = false;
+
+          // Persist a baseline session immediately so F5 can restore this run.
+          saveSession();
         }
       }
 

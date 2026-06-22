@@ -44,6 +44,7 @@ function createElement() {
 function createFixture() {
   const ids = [
     '#game-title', '#paid-badge', '#config-status', '#card-payment', '#payment-message', '#pay-and-play',
+    '#card-offline', '#offline-message', '#download-offline', '#offline-status',
     '#card-name', '#player-name-input', '#start-with-name', '#card-target', '#card-progress', '#card-location',
     '#card-status', '#card-question', '#question-text', '#answer-input', '#answer-feedback', '#submit-answer',
     '#skip-question', '#route-badge', '#target-name', '#game-logo', '#location-image', '#location-description',
@@ -90,6 +91,9 @@ function baseState() {
     statusMessage: 'Ready',
     collectedLetters: [],
     nameConfirmed: true,
+    sessionRestored: false,
+    supportsOffline: false,
+    offlineMode: false,
     userPosition: null,
     priceInCents: 250,
   };
@@ -305,6 +309,41 @@ test('updateUi shows optional name gate for free games before start', () => {
 
   assert.equal(els.cardName.classList.contains('hidden'), false);
   assert.equal(els.cardLocation.classList.contains('hidden'), true);
+
+  fixture.restore();
+});
+
+test('updateUi keeps offline download card hidden for restored sessions', () => {
+  const fixture = createFixture();
+  const state = {
+    ...baseState(),
+    gameId: 'game-1',
+    supportsOffline: true,
+    offlineMode: false,
+    nameConfirmed: true,
+    sessionRestored: true,
+    geoWatchId: null,
+  };
+
+  const ui = createUiController({
+    state,
+    tm: (key) => key,
+    formatEuro: (cents) => `EUR ${cents}`,
+    buildRankingsUrl: (slug) => `/rankings.html?slug=${slug}`,
+    slug: 'demo',
+    distanceMeters: () => 10,
+    constants: {
+      LOCATION_RADIUS_METERS: 5,
+      MAX_ALLOWED_GPS_ACCURACY_METERS: 11,
+    },
+  });
+
+  const els = ui.getEls();
+  ui.setElements(els);
+  ui.updateUi();
+
+  assert.equal(els.cardOffline.classList.contains('hidden'), true);
+  assert.equal(els.cardLocation.classList.contains('hidden'), false);
 
   fixture.restore();
 });

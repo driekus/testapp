@@ -167,8 +167,14 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
 
      els.cardPayment.classList.add('hidden');
 
-     // Show offline download card if offline mode is supported and not yet downloaded
-     if (state.supportsOffline && !state.offlineMode && state.nameConfirmed && state.geoWatchId === null) {
+     // Show offline download card only for fresh starts, not restored sessions.
+     if (
+       state.supportsOffline &&
+       !state.offlineMode &&
+       state.nameConfirmed &&
+       state.geoWatchId === null &&
+       !state.sessionRestored
+     ) {
        els.cardOffline?.classList.remove('hidden');
        els.cardTarget?.classList.add('hidden');
        els.cardProgress?.classList.add('hidden');
