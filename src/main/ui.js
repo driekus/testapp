@@ -378,7 +378,16 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
         ? tm('pendingLetter', { letter: state.pendingLetter })
         : '';
     }
-    if (els.confirmLetter) els.confirmLetter.disabled = !state.pendingLetter;
+    if (els.confirmLetter) {
+      els.confirmLetter.disabled = !state.pendingLetter;
+      if (state.pendingLetter) {
+        const isLastInRoute = state.currentLocationIndex + 1 >= state.route.length;
+        const isLastRoute = state.currentRouteIndex + 1 >= state.gameRoutes.length;
+        els.confirmLetter.textContent = (isLastInRoute && isLastRoute)
+          ? tm('confirmAndFinish')
+          : tm('confirmAndNext');
+      }
+    }
 
     if (els.locationImage) {
       els.locationImage.classList.add('hidden');
@@ -424,5 +433,3 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
     updateUi,
   };
 }
-
-

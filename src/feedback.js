@@ -5,7 +5,12 @@ import { loadGameStyles } from './gameStyleService.js';
 import { markPlayed } from './payment.js';
 import { buildRankingsUrl, setScoreDisplayName, setScoreDisplayNameBySession } from './scoreService.js';
 import { buildFeedbackContext, buildScoreNameOperation, parseFeedbackSession } from './feedbackCore.js';
-import { buildFeedbackPageCopy, buildFeedbackSubmitPayload, resolveFeedbackError } from './feedbackPageCore.js';
+import {
+  buildFeedbackPageCopy,
+  buildFeedbackSubmitPayload,
+  resolveFeedbackError,
+  shouldBlockRankingsNavigation,
+} from './feedbackPageCore.js';
 
 const language = getLanguage();
 /** Shortcut for translating keys from the `main` section in feedback view. */
@@ -25,6 +30,7 @@ const {
   playerId,
   winnerName,
   winnerPhone,
+  offlineMode,
 } = buildFeedbackContext(data);
 
 // ─── Load game styles ─────────────────────────────────────────────────────────
@@ -57,10 +63,25 @@ document.querySelector('#score-summary-points').textContent = copy.scorePoints;
 document.querySelector('#score-summary-time').textContent = copy.scoreTime;
 document.querySelector('#score-summary-time').classList.toggle('hidden', copy.hideScoreTime);
 
+const offlineNoticeEl = document.querySelector('#offline-score-notice');
+if (offlineNoticeEl && offlineMode) {
+  offlineNoticeEl.textContent = tm('offlineScoreNotice');
+  offlineNoticeEl.classList.remove('hidden');
+}
+
 // ─── Navigation ───────────────────────────────────────────────────────────────
 
 /** Navigate to the rankings page for the current game slug. */
 function goToRankings() {
+  if (shouldBlockRankingsNavigation(offlineMode, navigator)) {
+    statusEl.textContent = tm('offlineRankingsUnavailable');
+    statusEl.classList.remove('hidden');
+    submitBtn.disabled = false;
+    skipBtn.disabled = false;
+    submitBtn.textContent = tm('feedbackSubmit');
+    skipBtn.textContent = tm('feedbackSkip');
+    return;
+  }
   window.location.href = buildRankingsUrl(slug);
 }
 
@@ -167,4 +188,3 @@ skipBtn.addEventListener('click', async () => {
   } catch { /* non-fatal */ }
   goToRankings();
 });
-

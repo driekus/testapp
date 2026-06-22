@@ -23,6 +23,18 @@ export function buildFeedbackPageCopy(tm, data, finalScore, totalAnswerTimeMs) {
 }
 
 /**
+ * Determine whether navigating to rankings should be blocked for offline runs.
+ * Rankings depend on live network data, so offline-mode sessions should stay on
+ * the feedback page until connectivity returns.
+ * @param {boolean} offlineMode
+ * @param {{ onLine?: boolean } | undefined | null} navigatorRef
+ * @returns {boolean}
+ */
+export function shouldBlockRankingsNavigation(offlineMode, navigatorRef) {
+  return Boolean(offlineMode) && navigatorRef?.onLine === false;
+}
+
+/**
  * Build payload for feedback submit endpoint.
  * @param {string} slug
  * @param {string} message

@@ -566,6 +566,7 @@ function completeCurrentLocation(letter = null) {
            // Winner/player name passed through to feedback for DB save
            winnerName: state.requiresPayment ? state.winnerName : state.playerDisplayName,
            winnerPhone: state.requiresPayment ? state.winnerPhone : '',
+           offlineMode: state.offlineMode,
          };
          sessionStorage.setItem('letter-quest-feedback', JSON.stringify(feedbackData));
       } catch { /* ignore */ }

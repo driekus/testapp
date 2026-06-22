@@ -5,6 +5,7 @@ import {
   buildFeedbackPageCopy,
   buildFeedbackSubmitPayload,
   resolveFeedbackError,
+  shouldBlockRankingsNavigation,
 } from '../src/feedbackPageCore.js';
 
 function tm(key, params = {}) {
@@ -38,5 +39,12 @@ test('resolveFeedbackError prefers API error then status text then fallback', ()
   assert.equal(resolveFeedbackError({ error: 'blocked' }, 'Forbidden', 'fallback'), 'blocked');
   assert.equal(resolveFeedbackError({}, 'Forbidden', 'fallback'), 'Forbidden');
   assert.equal(resolveFeedbackError({}, '', 'fallback'), 'fallback');
+});
+
+test('shouldBlockRankingsNavigation only blocks offline runs without connectivity', () => {
+  assert.equal(shouldBlockRankingsNavigation(true, { onLine: false }), true);
+  assert.equal(shouldBlockRankingsNavigation(true, { onLine: true }), false);
+  assert.equal(shouldBlockRankingsNavigation(false, { onLine: false }), false);
+  assert.equal(shouldBlockRankingsNavigation(true, null), false);
 });
 
