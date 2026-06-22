@@ -86,6 +86,7 @@ const state = {
   statusMessage: tm('tapToBegin'),
   configStatus: tm('configLoading'),
   lastDistanceToTarget: null,
+  hintVisible: false,
   playerId: '',
   playerSessionId: '',
   score: 0,
@@ -530,6 +531,7 @@ async function submitAnswer() {
 function completeCurrentLocation(letter = null) {
   if (letter) state.collectedLetters.push(letter);
   state.pendingLetter = null;
+  state.hintVisible = false;
   state.questionStartedAt = 0;
   state.currentLocationIndex += 1;
   state.lastDistanceToTarget = null;
@@ -642,6 +644,7 @@ async function startNextRoute() {
   state.lastLetterGrantedAt = 0;
   state.routeComplete = false;
   state.lastDistanceToTarget = null;
+  state.hintVisible = false;
   state.questionStartedAt = 0;
   state.checking = true;
   state.statusMessage = tm('checking');
@@ -765,6 +768,7 @@ async function loadGame() {
         state.currentLocationIndex = 0;
         state.collectedLetters = [];
         state.pendingLetter = null;
+        state.hintVisible = false;
         state.lastLetterGrantedAt = 0;
         state.routeComplete = false;
         state.playerSessionId = freshPlaySessionId;
@@ -787,6 +791,7 @@ async function loadGame() {
           state.currentLocationIndex = saved.currentLocationIndex;
           state.collectedLetters = saved.collectedLetters ?? [];
           state.pendingLetter = saved.pendingLetter ?? null;
+          state.hintVisible = false;
           state.route = normalizeRoute(saved.route);
           state.routeComplete = saved.routeComplete ?? false;
           state.lastLetterGrantedAt = saved.lastLetterGrantedAt ?? 0;
@@ -811,6 +816,7 @@ async function loadGame() {
           state.currentLocationIndex = 0;
           state.collectedLetters = [];
           state.pendingLetter = null;
+          state.hintVisible = false;
           state.lastLetterGrantedAt = 0;
           state.routeComplete = false;
           state.playerSessionId = freshPlaySessionId;
@@ -920,6 +926,10 @@ if (!slug) {
     }
   });
   els.confirmLetter.addEventListener('click', confirmLetter);
+  els.toggleQuestionHint?.addEventListener('click', () => {
+    state.hintVisible = !state.hintVisible;
+    updateUi();
+  });
   els.nextRoute.addEventListener('click', startNextRoute);
   els.submitAnswer.addEventListener('click', submitAnswer);
   els.skipQuestion.addEventListener('click', skipQuestion);

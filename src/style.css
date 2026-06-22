@@ -1,6 +1,6 @@
 :root {
   color-scheme: light dark;
-  font-family: var(--font-family, Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif);
+  font-family: var(--font-family, Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif), serif;
   line-height: 1.5;
 
   /* Primary colors */
@@ -250,6 +250,10 @@ input[type='tel'] {
   padding: 3px 10px;
   border-radius: 99px;
   margin-bottom: 4px;
+}
+
+.route-badge.hidden {
+  display: none;
 }
 
 /* Lobby — game list */

@@ -50,6 +50,9 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
        cardStatus: document.querySelector('#card-status'),
        cardQuestion: document.querySelector('#card-question'),
        questionText: document.querySelector('#question-text'),
+        toggleQuestionHint: document.querySelector('#toggle-question-hint'),
+        questionHintImage: document.querySelector('#question-hint-image'),
+        questionHintDescription: document.querySelector('#question-hint-description'),
        answerInput: document.querySelector('#answer-input'),
        answerFeedback: document.querySelector('#answer-feedback'),
        submitAnswer: document.querySelector('#submit-answer'),
@@ -59,6 +62,7 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
        gameLogo: document.querySelector('#game-logo'),
        locationImage: document.querySelector('#location-image'),
        locationDescription: document.querySelector('#location-description'),
+        toggleHint: document.querySelector('#toggle-hint'),
        distance: document.querySelector('#distance'),
        progress: document.querySelector('#progress'),
        letters: document.querySelector('#letters'),
@@ -206,11 +210,35 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
     // While a question must be answered, show only the question card
     if (state.pendingQuestion) {
       const questionTarget = state.route[state.currentLocationIndex];
+      const hasHint = Boolean(questionTarget?.image_url || questionTarget?.description);
+      const hintVisible = hasHint && state.hintVisible;
       els.cardQuestion?.classList.remove('hidden');
       els.cardTarget?.classList.add('hidden');
       els.cardProgress?.classList.add('hidden');
       els.cardStatus?.classList.add('hidden');
       if (els.questionText) els.questionText.textContent = questionTarget?.question ?? '';
+      if (els.toggleQuestionHint) {
+        els.toggleQuestionHint.classList.toggle('hidden', !hasHint);
+        els.toggleQuestionHint.textContent = hintVisible ? tm('hideHint') : tm('showHint');
+      }
+      if (hintVisible && questionTarget?.image_url) {
+        if (els.questionHintImage) {
+          els.questionHintImage.src = questionTarget.image_url;
+          els.questionHintImage.classList.remove('hidden');
+        }
+      } else if (els.questionHintImage) {
+        els.questionHintImage.classList.add('hidden');
+        els.questionHintImage.src = '';
+      }
+      if (hintVisible && questionTarget?.description) {
+        if (els.questionHintDescription) {
+          els.questionHintDescription.textContent = questionTarget.description;
+          els.questionHintDescription.classList.remove('hidden');
+        }
+      } else if (els.questionHintDescription) {
+        els.questionHintDescription.classList.add('hidden');
+        els.questionHintDescription.textContent = '';
+      }
       if (els.skipQuestion) {
         els.skipQuestion.textContent = tm('continueWithoutAnswer');
         els.skipQuestion.disabled = state.checking;
@@ -232,6 +260,15 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
     }
 
     els.cardQuestion?.classList.add('hidden');
+    els.toggleQuestionHint?.classList.add('hidden');
+    if (els.questionHintImage) {
+      els.questionHintImage.classList.add('hidden');
+      els.questionHintImage.src = '';
+    }
+    if (els.questionHintDescription) {
+      els.questionHintDescription.classList.add('hidden');
+      els.questionHintDescription.textContent = '';
+    }
 
     // Show only the status card when a letter is pending confirmation
     const focusStatus = Boolean(state.pendingLetter) && !state.routeComplete;
@@ -266,6 +303,7 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
       if (els.targetName) els.targetName.textContent = tm('allCompleted');
       if (els.distance) els.distance.textContent = '';
       els.locationImage?.classList.add('hidden');
+      els.locationDescription?.classList.add('hidden');
       if (els.progress) els.progress.textContent = tm('greatJob');
       if (els.pendingLetter) els.pendingLetter.textContent = '';
       if (els.confirmLetter) els.confirmLetter.disabled = true;
@@ -279,6 +317,8 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
     if (state.routeComplete) {
       if (els.targetName) els.targetName.textContent = '';
       if (els.distance) els.distance.textContent = '';
+      els.locationImage?.classList.add('hidden');
+      els.locationDescription?.classList.add('hidden');
       if (els.confirmLetter) els.confirmLetter.disabled = true;
       if (els.nextRoute) {
         els.nextRoute.classList.remove('hidden');
@@ -302,6 +342,8 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
     if (!currentTarget) {
       if (els.targetName) els.targetName.textContent = tm('allCompleted');
       if (els.distance) els.distance.textContent = '';
+      els.locationImage?.classList.add('hidden');
+      els.locationDescription?.classList.add('hidden');
       if (els.progress) els.progress.textContent = tm('greatJob');
       if (els.pendingLetter) els.pendingLetter.textContent = '';
       if (els.confirmLetter) els.confirmLetter.disabled = true;
@@ -332,30 +374,16 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
     }
     if (els.confirmLetter) els.confirmLetter.disabled = !state.pendingLetter;
 
-    // Show image and/or description as hint, or distance - hints suppress distance
-    if (currentTarget.image_url) {
-      if (els.locationImage) {
-        els.locationImage.src = currentTarget.image_url;
-        els.locationImage.classList.remove('hidden');
-      }
-    } else if (els.locationImage) {
+    if (els.locationImage) {
       els.locationImage.classList.add('hidden');
       els.locationImage.src = '';
     }
-
-    if (currentTarget.description) {
-      if (els.locationDescription) {
-        els.locationDescription.textContent = currentTarget.description;
-        els.locationDescription.classList.remove('hidden');
-      }
-    } else if (els.locationDescription) {
+    if (els.locationDescription) {
       els.locationDescription.classList.add('hidden');
       els.locationDescription.textContent = '';
     }
 
-    if (currentTarget.image_url || currentTarget.description) {
-      if (els.distance) els.distance.textContent = '';
-    } else if (state.userPosition) {
+    if (state.userPosition) {
       const effectiveRadius = Math.min(
         MAX_ALLOWED_GPS_ACCURACY_METERS,
         Math.max(LOCATION_RADIUS_METERS, state.userPosition.accuracy),

@@ -95,6 +95,11 @@
         <section id="card-question" class="card hidden">
           <h2 data-i18n="questionTitle"></h2>
           <p id="question-text"></p>
+          <div class="actions" style="margin-top: 0;">
+            <button id="toggle-question-hint" type="button" class="ghost hidden" data-i18n="showHint"></button>
+          </div>
+          <img id="question-hint-image" class="location-image hidden" alt="" />
+          <p id="question-hint-description" class="location-description hidden"></p>
           <input id="answer-input" type="text" autocomplete="off" data-i18n-placeholder="answerPlaceholder" aria-label="Answer" />
           <p id="answer-feedback" class="answer-feedback hidden"></p>
           <div class="actions">
