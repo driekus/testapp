@@ -85,4 +85,15 @@ export function isQuickJump(previousPosition, nextPosition, limits) {
   );
 }
 
-
+/**
+ * Validate an answer locally for offline mode.
+ * Compares answer (case-insensitive, whitespace trimmed) against expected answer.
+ * @param {string} givenAnswer - The answer provided by the player.
+ * @param {string} correctAnswer - The expected answer from the location config.
+ * @returns {boolean} True if the answer matches (case-insensitive).
+ */
+export function validateAnswerLocally(givenAnswer, correctAnswer) {
+  const normalizedGiven = String(givenAnswer ?? '').trim().toLowerCase();
+  const normalizedCorrect = String(correctAnswer ?? '').trim().toLowerCase();
+  return normalizedGiven === normalizedCorrect;
+}

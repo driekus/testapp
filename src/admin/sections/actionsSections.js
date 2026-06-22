@@ -197,27 +197,29 @@ export function createActionsSections({
     }
   }
 
-  /**
-   * Save game display name and payment settings changes.
-   */
-  async function handleSaveDisplayName() {
-    const name = els.editDisplayName.value.trim();
-    if (!name) { setStatus(ta('displayNameRequired'), true); return; }
-    try {
-      const requiresPayment = els.requiresPayment.checked;
-      const priceInCents = requiresPayment ? eurosToCents(els.priceEuros.value) : 0;
-      await saveGame(state.currentSlug, name, requiresPayment, priceInCents);
-      state.currentRequiresPayment = requiresPayment;
-      state.currentPriceInCents = priceInCents;
-      const g = state.games.find((x) => x.slug === state.currentSlug);
-      if (g) g.display_name = name;
-      populateGameSelect();
-      els.gameSelect.value = state.currentSlug;
-      setStatus(ta('nameSaved'));
-    } catch (err) {
-      setStatus(err.message, true);
-    }
-  }
+   /**
+    * Save game display name and payment settings changes.
+    */
+   async function handleSaveDisplayName() {
+     const name = els.editDisplayName.value.trim();
+     if (!name) { setStatus(ta('displayNameRequired'), true); return; }
+     try {
+       const requiresPayment = els.requiresPayment.checked;
+       const priceInCents = requiresPayment ? eurosToCents(els.priceEuros.value) : 0;
+       const supportsOffline = els.supportsOffline.checked;
+       await saveGame(state.currentSlug, name, requiresPayment, priceInCents, supportsOffline);
+       state.currentRequiresPayment = requiresPayment;
+       state.currentPriceInCents = priceInCents;
+       state.currentSupportsOffline = supportsOffline;
+       const g = state.games.find((x) => x.slug === state.currentSlug);
+       if (g) g.display_name = name;
+       populateGameSelect();
+       els.gameSelect.value = state.currentSlug;
+       setStatus(ta('nameSaved'));
+     } catch (err) {
+       setStatus(err.message, true);
+     }
+   }
 
   /**
    * Save edited game style values for the selected game.

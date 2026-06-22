@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
 
     const { data, error } = await supabase
       .from('games')
-      .select('id, slug, display_name, logo_url, requires_payment, price_in_cents, routes(id, order_index, display_name, route)')
+      .select('id, slug, display_name, logo_url, requires_payment, price_in_cents, supports_offline, routes(id, order_index, display_name, route)')
       .eq('slug', slug)
       .maybeSingle();
 
@@ -61,6 +61,7 @@ Deno.serve(async (req) => {
           logo_url: data.logo_url ?? '',
           requires_payment: data.requires_payment ?? false,
           price_in_cents: data.price_in_cents ?? 0,
+          supports_offline: data.supports_offline ?? false,
           routes: routesMeta,
           start_location: startLocation,
         },

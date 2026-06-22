@@ -138,7 +138,7 @@ export async function fetchGameWithRoutes(slug) {
  * Subsequent locations are revealed by Edge Functions as the player progresses.
  * The full route (answers, letters, future locations) never reaches the browser.
  * @param {string} slug
- * @returns {Promise<{id: string, slug: string, display_name: string, routes: Array} | null>}
+ * @returns {Promise<{id: string, slug: string, display_name: string, supports_offline: boolean, routes: Array} | null>}
  */
 export async function fetchGameForPlay(slug) {
   const res = await withTimeout(
@@ -187,9 +187,10 @@ export async function fetchRouteStart(routeId, paymentToken = null) {
  * @param {string} displayName
  * @param {boolean} [requiresPayment=false]
  * @param {number} [priceInCents=0]
+ * @param {boolean} [supportsOffline=false]
  * @returns {Promise<string>} the game's uuid
  */
-export async function saveGame(slug, displayName, requiresPayment = false, priceInCents = 0) {
+export async function saveGame(slug, displayName, requiresPayment = false, priceInCents = 0, supportsOffline = false) {
   if (!runtimeSupabase) throw new Error('Supabase is not configured.');
 
   const { data, error } = await runtimeSupabase
@@ -200,6 +201,7 @@ export async function saveGame(slug, displayName, requiresPayment = false, price
         display_name: displayName,
         requires_payment: Boolean(requiresPayment),
         price_in_cents: Math.max(0, Math.round(Number(priceInCents) || 0)),
+        supports_offline: Boolean(supportsOffline),
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'slug' },

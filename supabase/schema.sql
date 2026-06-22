@@ -109,6 +109,7 @@ end $$;
 -- -----------------------------------------------------------------------------
 alter table public.games add column if not exists requires_payment boolean not null default false;
 alter table public.games add column if not exists price_in_cents   integer  not null default 0;
+alter table public.games add column if not exists supports_offline boolean not null default false;
 
 -- -----------------------------------------------------------------------------
 -- payment_sessions — one row per payment attempt

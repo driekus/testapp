@@ -1,5 +1,5 @@
 import './style.css';
-import { distanceMeters, isQuickJump } from './gameLogic.js';
+import { distanceMeters, isQuickJump, validateAnswerLocally } from './gameLogic.js';
 import { defaultConfig } from './config.js';
 import { hasSupabaseConfig, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient.js';
 import { fetchGameForPlay, fetchRouteStart, listGames } from './userConfigService.js';
@@ -26,6 +26,7 @@ import { createUiController } from './main/ui.js';
 import { createSessionStore } from './main/session.js';
 import { resolvePaymentAccess } from './main/paymentGate.js';
 import { createLocationTracking } from './main/locationTracking.js';
+import { downloadGameOffline, isGameCached, loadCachedGame, getCacheExpiryString } from './main/offlineSync.js';
 
 const LOCATION_RADIUS_METERS = 5;
 const MAX_ALLOWED_GPS_ACCURACY_METERS = 11;
@@ -54,6 +55,9 @@ const state = {
   priceInCents: 0,
   paymentToken: null,
   paymentReady: true,
+  supportsOffline: false,   // whether this game supports offline mode
+  offlineMode: false,       // true when using cached game data
+  offlineCacheExpiry: null, // timestamp when offline cache expires
   // player identity
   winnerName: '',           // paid games: loaded from sessionStorage after winner.html
   winnerPhone: '',          // paid games: loaded from sessionStorage after winner.html
@@ -388,26 +392,39 @@ async function confirmArrival() {
   updateUi();
 
   try {
-    const res = await fetch(await edgeFunctionUrl('confirm-arrival'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-      body: JSON.stringify({
-        route_id: state.currentRouteId,
-        location_index: state.currentLocationIndex,
-        payment_token: state.requiresPayment ? state.paymentToken : null,
-      }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      state.serverError = true;
-      state.statusMessage = tm('serverError');
-      state.lastLetterGrantedAt = 0;  // allow retry on next GPS tick
+    // Offline mode: confirm locally
+    if (state.offlineMode) {
+      const currentTarget = state.route[state.currentLocationIndex];
+      if (currentTarget) {
+        state.pendingLetter = currentTarget.letter;
+        // Next location is already in state.route
+        await recordProgressEvent(SCORE_EVENT_TYPES.ARRIVAL_CONFIRMED);
+        state.statusMessage = tm('reached', { name: currentTarget.name });
+        saveSession();
+      }
     } else {
-      state.pendingLetter = json.letter;
-      pushNextLocation(json.next_location);
-      await recordProgressEvent(SCORE_EVENT_TYPES.ARRIVAL_CONFIRMED);
-      state.statusMessage = tm('reached', { name: state.route[state.currentLocationIndex].name });
-      saveSession();
+      // Online mode: confirm via Edge Function
+      const res = await fetch(await edgeFunctionUrl('confirm-arrival'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({
+          route_id: state.currentRouteId,
+          location_index: state.currentLocationIndex,
+          payment_token: state.requiresPayment ? state.paymentToken : null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        state.serverError = true;
+        state.statusMessage = tm('serverError');
+        state.lastLetterGrantedAt = 0;  // allow retry on next GPS tick
+      } else {
+        state.pendingLetter = json.letter;
+        pushNextLocation(json.next_location);
+        await recordProgressEvent(SCORE_EVENT_TYPES.ARRIVAL_CONFIRMED);
+        state.statusMessage = tm('reached', { name: state.route[state.currentLocationIndex].name });
+        saveSession();
+      }
     }
   } catch {
     state.serverError = true;
@@ -436,39 +453,62 @@ async function submitAnswer() {
   updateUi();
 
   try {
-    const res = await fetch(await edgeFunctionUrl('check-answer'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-      body: JSON.stringify({
-        route_id: state.currentRouteId,
-        location_index: state.currentLocationIndex,
-        answer: given,
-        payment_token: state.requiresPayment ? state.paymentToken : null,
-      }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      state.serverError = true;
-      state.statusMessage = tm('serverError');
-    } else if (json.correct) {
-      const attemptNumber = state.answerAttempts + 1;
-      const answerTimeMs = state.questionStartedAt > 0
-        ? Math.max(0, Date.now() - state.questionStartedAt)
-        : 0;
-      state.pendingQuestion = false;
-      state.answerAttempts = 0;
-      state.questionStartedAt = 0;
-      state.pendingLetter = json.letter;
-      pushNextLocation(json.next_location);
-      await recordProgressEvent(SCORE_EVENT_TYPES.ARRIVAL_CONFIRMED);
-      await recordProgressEvent(SCORE_EVENT_TYPES.ANSWER_CORRECT, {
-        attempt_number: attemptNumber,
-        answer_time_ms: answerTimeMs,
-      });
-      saveSession();
+    const attemptNumber = state.answerAttempts + 1;
+    const answerTimeMs = state.questionStartedAt > 0
+      ? Math.max(0, Date.now() - state.questionStartedAt)
+      : 0;
+
+    // Offline mode: validate answer locally
+    if (state.offlineMode) {
+      const isCorrect = validateAnswerLocally(given, currentTarget.answer);
+      if (isCorrect) {
+        state.pendingQuestion = false;
+        state.answerAttempts = 0;
+        state.questionStartedAt = 0;
+        state.pendingLetter = currentTarget.letter;
+        // In offline mode, next location is already available in state.route
+        await recordProgressEvent(SCORE_EVENT_TYPES.ARRIVAL_CONFIRMED);
+        await recordProgressEvent(SCORE_EVENT_TYPES.ANSWER_CORRECT, {
+          attempt_number: attemptNumber,
+          answer_time_ms: answerTimeMs,
+        });
+        saveSession();
+      } else {
+        state.answerAttempts += 1;
+        state.answerWrong = true;
+      }
     } else {
-      state.answerAttempts += 1;
-      state.answerWrong = true;
+      // Online mode: validate via Edge Function
+      const res = await fetch(await edgeFunctionUrl('check-answer'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({
+          route_id: state.currentRouteId,
+          location_index: state.currentLocationIndex,
+          answer: given,
+          payment_token: state.requiresPayment ? state.paymentToken : null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        state.serverError = true;
+        state.statusMessage = tm('serverError');
+      } else if (json.correct) {
+        state.pendingQuestion = false;
+        state.answerAttempts = 0;
+        state.questionStartedAt = 0;
+        state.pendingLetter = json.letter;
+        pushNextLocation(json.next_location);
+        await recordProgressEvent(SCORE_EVENT_TYPES.ARRIVAL_CONFIRMED);
+        await recordProgressEvent(SCORE_EVENT_TYPES.ANSWER_CORRECT, {
+          attempt_number: attemptNumber,
+          answer_time_ms: answerTimeMs,
+        });
+        saveSession();
+      } else {
+        state.answerAttempts += 1;
+        state.answerWrong = true;
+      }
     }
   } catch {
     state.serverError = true;
@@ -645,6 +685,7 @@ async function loadGame() {
 
       state.requiresPayment = Boolean(game.requires_payment);
       state.priceInCents = Number(game.price_in_cents) || 0;
+      state.supportsOffline = Boolean(game.supports_offline);
       state.paymentReady = !state.requiresPayment;
       if (!state.requiresPayment) state.paymentToken = null;
 
@@ -653,7 +694,11 @@ async function loadGame() {
         els.gameLogo.classList.remove('hidden');
       }
 
-      if (state.requiresPayment) {
+      // Check if offline cache exists for this game
+      const cachedData = loadCachedGame(slug);
+      const useOfflineCache = cachedData && state.supportsOffline;
+
+      if (state.requiresPayment && !useOfflineCache) {
         const canPlay = await resolvePaymentAccess({
           state,
           slug,
@@ -699,45 +744,21 @@ async function loadGame() {
         state.nameConfirmed = false;
       }
 
-      const saved = loadSavedSession();
-      const liveIds = game.routes.map((r) => r.id).join(',');
-      const savedIds = saved?.gameRoutes?.map((r) => r.id).join(',');
-      const compatible = saved?.v === 1 && liveIds === savedIds && saved.route?.length > 0;
-
-      if (compatible) {
-        state.gameRoutes = saved.gameRoutes;
-        state.displayName = saved.displayName || game.display_name;
-        state.currentRouteIndex = saved.currentRouteIndex;
-        state.currentRouteId = saved.currentRouteId;
-        state.currentLocationIndex = saved.currentLocationIndex;
-        state.collectedLetters = saved.collectedLetters ?? [];
-        state.pendingLetter = saved.pendingLetter ?? null;
-        state.route = saved.route.filter((loc, i, arr) =>
-          i === 0 || !(arr[i - 1].lat === loc.lat && arr[i - 1].lng === loc.lng),
-        );
-        state.routeComplete = saved.routeComplete ?? false;
-        state.lastLetterGrantedAt = saved.lastLetterGrantedAt ?? 0;
-        state.playerId = saved.playerId || state.playerId;
-        state.playerSessionId = saved.playerSessionId || freshPlaySessionId;
-        state.playerDisplayName = saved.playerDisplayName || '';
-        state.score = Number(saved.score) || 0;
-        state.lastScoreDelta = Number(saved.lastScoreDelta) || 0;
-        state.totalAnswerTimeMs = Number(saved.totalAnswerTimeMs) || 0;
-        state.questionStartedAt = saved.questionStartedAt ?? 0;
-        state.statusMessage = tm('sessionRestored');
-        // Restored sessions should not re-show the free-name gate.
-        state.nameConfirmed = true;
-
-        shouldAutoResumeTracking =
-          state.currentLocationIndex > 0 ||
-          state.collectedLetters.length > 0 ||
-          state.routeComplete;
-      } else {
-        state.gameRoutes = game.routes;
-        state.displayName = game.display_name;
-        state.route = game.start_location ? [game.start_location] : [];
+      // Load game data from cache if available, otherwise from server
+      if (useOfflineCache) {
+        state.offlineMode = true;
+        state.offlineCacheExpiry = cachedData.expiresAt;
+        const cachedGame = cachedData.game;
+        state.gameRoutes = cachedGame.routes.map((r) => ({
+          id: r.id,
+          order_index: r.order_index,
+          display_name: r.display_name,
+          route: r.route,
+        }));
+        state.displayName = cachedGame.display_name;
+        state.route = state.gameRoutes[0]?.route ?? [];
         state.currentRouteIndex = 0;
-        state.currentRouteId = game.routes[0].id;
+        state.currentRouteId = state.gameRoutes[0]?.id ?? null;
         state.currentLocationIndex = 0;
         state.collectedLetters = [];
         state.pendingLetter = null;
@@ -749,6 +770,58 @@ async function loadGame() {
         state.totalAnswerTimeMs = 0;
         state.questionStartedAt = 0;
         state.statusMessage = tm('tapToBegin');
+      } else {
+        const saved = loadSavedSession();
+        const liveIds = game.routes.map((r) => r.id).join(',');
+        const savedIds = saved?.gameRoutes?.map((r) => r.id).join(',');
+        const compatible = saved?.v === 1 && liveIds === savedIds && saved.route?.length > 0;
+
+        if (compatible) {
+          state.gameRoutes = saved.gameRoutes;
+          state.displayName = saved.displayName || game.display_name;
+          state.currentRouteIndex = saved.currentRouteIndex;
+          state.currentRouteId = saved.currentRouteId;
+          state.currentLocationIndex = saved.currentLocationIndex;
+          state.collectedLetters = saved.collectedLetters ?? [];
+          state.pendingLetter = saved.pendingLetter ?? null;
+          state.route = saved.route.filter((loc, i, arr) =>
+            i === 0 || !(arr[i - 1].lat === loc.lat && arr[i - 1].lng === loc.lng),
+          );
+          state.routeComplete = saved.routeComplete ?? false;
+          state.lastLetterGrantedAt = saved.lastLetterGrantedAt ?? 0;
+          state.playerId = saved.playerId || state.playerId;
+          state.playerSessionId = saved.playerSessionId || freshPlaySessionId;
+          state.playerDisplayName = saved.playerDisplayName || '';
+          state.score = Number(saved.score) || 0;
+          state.lastScoreDelta = Number(saved.lastScoreDelta) || 0;
+          state.totalAnswerTimeMs = Number(saved.totalAnswerTimeMs) || 0;
+          state.questionStartedAt = saved.questionStartedAt ?? 0;
+          state.statusMessage = tm('sessionRestored');
+          // Restored sessions should not re-show the free-name gate.
+          state.nameConfirmed = true;
+
+          shouldAutoResumeTracking =
+            state.currentLocationIndex > 0 ||
+            state.collectedLetters.length > 0 ||
+            state.routeComplete;
+        } else {
+          state.gameRoutes = game.routes;
+          state.displayName = game.display_name;
+          state.route = game.start_location ? [game.start_location] : [];
+          state.currentRouteIndex = 0;
+          state.currentRouteId = game.routes[0].id;
+          state.currentLocationIndex = 0;
+          state.collectedLetters = [];
+          state.pendingLetter = null;
+          state.lastLetterGrantedAt = 0;
+          state.routeComplete = false;
+          state.playerSessionId = freshPlaySessionId;
+          state.score = 0;
+          state.lastScoreDelta = 0;
+          state.totalAnswerTimeMs = 0;
+          state.questionStartedAt = 0;
+          state.statusMessage = tm('tapToBegin');
+        }
       }
 
       state.configStatus = hasSupabaseConfig ? tm('configLoaded') : tm('configDefault');
@@ -803,20 +876,39 @@ if (!slug) {
   });
   gameUi.classList.remove('hidden');
 
-  els = getEls();
-  setElements(els);
+   els = getEls();
+   setElements(els);
 
-  els.enableLocation.addEventListener('click', startLocationTracking);
-  els.payAndPlay.addEventListener('click', async () => {
-    els.payAndPlay.disabled = true;
-    try {
-      await startPayment(slug);
-    } catch {
-      els.payAndPlay.disabled = false;
-      showPaymentCard('payToPlay');
-    }
-  });
-  // Free-game optional name card
+   els.enableLocation.addEventListener('click', startLocationTracking);
+   els.payAndPlay.addEventListener('click', async () => {
+     els.payAndPlay.disabled = true;
+     try {
+       await startPayment(slug);
+     } catch {
+       els.payAndPlay.disabled = false;
+       showPaymentCard('payToPlay');
+     }
+   });
+   els.downloadOffline?.addEventListener('click', async () => {
+     if (els.downloadOffline) els.downloadOffline.disabled = true;
+     if (els.offlineStatus) els.offlineStatus.textContent = tm('downloadingOffline');
+     try {
+       const result = await downloadGameOffline(slug, state.paymentToken);
+       if (result.success) {
+         state.offlineMode = true;
+         state.offlineCacheExpiry = result.expiresAt;
+        // Reload the game with cached data
+         updateUi();
+       } else {
+         if (els.offlineStatus) els.offlineStatus.textContent = `Error: ${result.error}`;
+         if (els.downloadOffline) els.downloadOffline.disabled = false;
+       }
+     } catch (err) {
+       if (els.offlineStatus) els.offlineStatus.textContent = `Error: ${String(err)}`;
+       if (els.downloadOffline) els.downloadOffline.disabled = false;
+     }
+   });
+   // ...existing code...
   els.startWithName?.addEventListener('click', () => {
     state.playerDisplayName = els.playerNameInput?.value.trim() || '';
     state.nameConfirmed = true;

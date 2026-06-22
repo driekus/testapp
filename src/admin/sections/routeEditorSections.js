@@ -569,15 +569,17 @@ export function createRouteEditorSections({
       state.routes = game.routes.length
         ? game.routes
         : [{ id: null, order_index: 0, display_name: 'Route 1', route: [...DEFAULT_ROUTE] }];
-      state.currentRouteIndex = 0;
-      state.currentRequiresPayment = Boolean(game.requires_payment);
-      state.currentPriceInCents = Number(game.price_in_cents) || 0;
-      const savedStyles = await fetchGameStyles(game.id);
-      state.currentGameStyles = { ...DEFAULT_GAME_STYLES, ...(savedStyles ?? {}) };
+       state.currentRouteIndex = 0;
+       state.currentRequiresPayment = Boolean(game.requires_payment);
+       state.currentPriceInCents = Number(game.price_in_cents) || 0;
+       state.currentSupportsOffline = Boolean(game.supports_offline);
+       const savedStyles = await fetchGameStyles(game.id);
+       state.currentGameStyles = { ...DEFAULT_GAME_STYLES, ...(savedStyles ?? {}) };
 
-      els.editDisplayName.value = game.display_name;
-      els.requiresPayment.checked = state.currentRequiresPayment;
-      els.priceEuros.value = centsToEuros(state.currentPriceInCents);
+       els.editDisplayName.value = game.display_name;
+       els.requiresPayment.checked = state.currentRequiresPayment;
+       els.priceEuros.value = centsToEuros(state.currentPriceInCents);
+       els.supportsOffline.checked = state.currentSupportsOffline;
       syncPaymentControls();
       setLogoPreview(game.logo_url ?? '');
       renderGameStyleEditor(state.currentGameStyles);

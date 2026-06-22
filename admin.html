@@ -81,10 +81,14 @@
               <input type="checkbox" id="requires-payment" />
               <span data-i18n="requiresPayment"></span>
             </label>
-            <div id="price-wrap" class="hidden payment-price-row">
-              <label for="price-euros"></label><input id="price-euros" type="number" min="0" step="0.01" placeholder="0.00" />
-              <span data-i18n="euros"></span>
-            </div>
+             <div id="price-wrap" class="hidden payment-price-row">
+               <label for="price-euros"></label><input id="price-euros" type="number" min="0" step="0.01" placeholder="0.00" />
+               <span data-i18n="euros"></span>
+             </div>
+             <label class="payment-toggle">
+               <input type="checkbox" id="supports-offline" />
+               <span data-i18n="supportsOffline"></span>
+             </label>
             <div id="logo-preview-wrap" class="image-preview-wrap hidden">
               <img id="logo-preview-img" class="location-image-preview" alt="" />
               <button type="button" id="remove-logo-btn" class="ghost danger" data-i18n="removeLogo"></button>
