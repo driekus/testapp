@@ -450,11 +450,11 @@ async function submitAnswer() {
   if (!state.pendingQuestion || !currentTarget || state.checking) return;
 
   const given = els.answerInput.value.trim();
+  const statusBeforeSubmit = state.statusMessage;
   els.answerInput.value = '';
   state.answerWrong = false;
   state.serverError = false;
   state.checking = true;
-  state.statusMessage = tm('checking');
   updateUi();
 
   try {
@@ -468,6 +468,7 @@ async function submitAnswer() {
       const isCorrect = validateAnswerLocally(given, currentTarget.answer);
       if (isCorrect) {
         state.pendingQuestion = false;
+        state.answerWrong = false;
         state.answerAttempts = 0;
         state.questionStartedAt = 0;
         state.pendingLetter = currentTarget.letter;
@@ -500,6 +501,7 @@ async function submitAnswer() {
         state.statusMessage = tm('serverError');
       } else if (json.correct) {
         state.pendingQuestion = false;
+        state.answerWrong = false;
         state.answerAttempts = 0;
         state.questionStartedAt = 0;
         state.pendingLetter = json.letter;
@@ -520,6 +522,9 @@ async function submitAnswer() {
     state.statusMessage = tm('serverError');
   } finally {
     state.checking = false;
+  }
+  if (!state.serverError) {
+    state.statusMessage = statusBeforeSubmit;
   }
   checkArrival();
   updateUi();
@@ -705,6 +710,10 @@ async function loadGame() {
       // Check if offline cache exists for this game
       const cachedData = loadCachedGame(slug);
       const useOfflineCache = cachedData && state.supportsOffline;
+      state.offlineMode = Boolean(useOfflineCache);
+      if (!state.offlineMode) {
+        state.offlineCacheExpiry = null;
+      }
 
       if (state.requiresPayment && !useOfflineCache) {
         const canPlay = await resolvePaymentAccess({
@@ -809,6 +818,7 @@ async function loadGame() {
           // Restored sessions should not re-show the free-name gate.
           state.nameConfirmed = true;
           state.sessionRestored = true;
+          state.offlineMode = Boolean(saved.offlineMode);
 
           shouldAutoResumeTracking = shouldAutoResumeTrackingFromState(state);
         } else {
@@ -907,14 +917,12 @@ if (!slug) {
      try {
        const result = await downloadGameOffline(slug, state.paymentToken);
        if (result.success) {
-         state.offlineMode = true;
-         state.offlineCacheExpiry = result.expiresAt;
-        // Reload the game with cached data
-         updateUi();
-       } else {
-         if (els.offlineStatus) els.offlineStatus.textContent = `Error: ${result.error}`;
-         if (els.downloadOffline) els.downloadOffline.disabled = false;
+         // Re-run load flow so cached full route (including answers) is applied.
+         window.location.reload();
+         return;
        }
+       if (els.offlineStatus) els.offlineStatus.textContent = `Error: ${result.error}`;
+       if (els.downloadOffline) els.downloadOffline.disabled = false;
      } catch (err) {
        if (els.offlineStatus) els.offlineStatus.textContent = `Error: ${String(err)}`;
        if (els.downloadOffline) els.downloadOffline.disabled = false;

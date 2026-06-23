@@ -249,6 +249,10 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
         els.skipQuestion.textContent = tm('continueWithoutAnswer');
         els.skipQuestion.disabled = state.checking;
       }
+      if (els.submitAnswer) {
+        els.submitAnswer.textContent = state.checking ? tm('checking') : tm('submitAnswer');
+        els.submitAnswer.disabled = state.checking;
+      }
       if (els.answerFeedback) {
         els.answerFeedback.classList.toggle('hidden', !state.answerWrong);
         if (state.answerWrong) {

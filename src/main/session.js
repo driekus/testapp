@@ -35,6 +35,7 @@ export function createSessionStore({ sessionKey, storage, state }) {
         lastScoreDelta: state.lastScoreDelta,
         totalAnswerTimeMs: state.totalAnswerTimeMs,
         questionStartedAt: state.questionStartedAt,
+        offlineMode: state.offlineMode,
       }));
     } catch {
       // Ignore storage failures (full/unavailable).
@@ -71,4 +72,3 @@ export function createSessionStore({ sessionKey, storage, state }) {
     loadSavedSession,
   };
 }
-
