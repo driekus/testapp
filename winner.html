@@ -11,6 +11,8 @@
     <title>Letter Quest — Your Details</title>
   </head>
   <body>
+    <script type="module" src="/src/mobileGuardEntry.js"></script>
+    <div id="mobile-guard" aria-hidden="true"></div>
     <div id="app">
       <main class="container">
         <img id="game-logo" class="game-logo hidden" alt="" />
@@ -20,8 +22,10 @@
         <section class="card" id="winner-form-card">
           <h2 id="winner-form-heading"></h2>
           <p id="winner-form-hint"></p>
-          <input id="winner-name" type="text" autocomplete="name" />
-          <input id="winner-phone" type="tel" autocomplete="tel" />
+          <label class="visually-hidden" id="winner-name-label" for="winner-name">Name</label>
+          <input id="winner-name" type="text" autocomplete="name" aria-label="Name" />
+          <label class="visually-hidden" id="winner-phone-label" for="winner-phone">Phone</label>
+          <input id="winner-phone" type="tel" autocomplete="tel" aria-label="Phone" aria-describedby="winner-phone-responsibility" />
           <p class="small muted" id="winner-phone-responsibility"></p>
           <p id="winner-status" class="hidden" style="color: var(--accent-text-amber, #92400e);"></p>
           <div class="actions">

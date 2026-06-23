@@ -6,6 +6,24 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
+ * Strip console.log / warn / error / info / debug / trace calls from the
+ * production bundle by replacing them with a no-op arrow function call.
+ * Runs only during `vite build`, never in dev mode.
+ */
+function dropConsolePlugin() {
+  const CONSOLE_RE = /\bconsole\.(log|warn|error|info|debug|trace)\b/g;
+  return {
+    name: 'drop-console',
+    apply: 'build',
+    transform(code) {
+      if (!CONSOLE_RE.test(code)) return null;
+      CONSOLE_RE.lastIndex = 0;
+      return { code: code.replace(CONSOLE_RE, '(()=>{})'), map: null };
+    },
+  };
+}
+
+/**
  * Stamp a unique cache name into the built service worker after each build.
  * This avoids stale cached HTML/asset hash mismatches across deployments.
  */
@@ -38,7 +56,7 @@ const SPA_REWRITES = [
 ];
 
 export default defineConfig({
-  plugins: [swVersionPlugin()],
+  plugins: [swVersionPlugin(), dropConsolePlugin()],
   server: {
     // Serve index.html for any unknown path so /:slug works in dev
     historyApiFallback: { rewrites: SPA_REWRITES },
@@ -48,6 +66,7 @@ export default defineConfig({
     historyApiFallback: { rewrites: SPA_REWRITES },
   },
   build: {
+    // Strip all console.* calls and debugger statements from production bundles.
     rollupOptions: {
       input: {
         main: 'index.html',
@@ -56,6 +75,7 @@ export default defineConfig({
         rankings: 'rankings.html',
         winner: 'winner.html',
         'mock-payment': 'mock-payment.html',
+        'mobile-only': 'mobile-only.html',
       },
     },
   },

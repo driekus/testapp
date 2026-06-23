@@ -38,6 +38,10 @@ document.querySelector('#winner-page-title').textContent = tm('winnerPageTitle')
 document.querySelector('#winner-page-subtitle').textContent = tm('winnerPageSubtitle');
 document.querySelector('#winner-form-heading').textContent = tm('winnerTitle');
 document.querySelector('#winner-form-hint').textContent = tm('winnerHint');
+document.querySelector('#winner-name-label').textContent = tm('winnerName');
+document.querySelector('#winner-phone-label').textContent = tm('winnerPhone');
+nameInput.setAttribute('aria-label', tm('winnerName'));
+phoneInput.setAttribute('aria-label', tm('winnerPhone'));
 nameInput.placeholder = tm('winnerName');
 phoneInput.placeholder = tm('winnerPhone');
 document.querySelector('#winner-phone-responsibility').textContent = tm('winnerPhoneResponsibility');

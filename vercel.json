@@ -1,5 +1,17 @@
 {
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options",           "value": "DENY" },
+        { "key": "X-Content-Type-Options",     "value": "nosniff" },
+        { "key": "Referrer-Policy",            "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy",         "value": "geolocation=(self), camera=(), microphone=()" },
+        { "key": "X-XSS-Protection",           "value": "1; mode=block" }
+      ]
+    }
+  ],
   "rewrites": [
-    { "source": "/((?!admin\\.html$|feedback\\.html$|rankings\\.html$|winner\\.html$|mock-payment\\.html$|assets/).*)", "destination": "/index.html" }
+    { "source": "/((?!admin\\.html$|feedback\\.html$|rankings\\.html$|winner\\.html$|mock-payment\\.html$|mobile-only\\.html$|assets/).*)", "destination": "/index.html" }
   ]
 }

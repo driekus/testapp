@@ -59,6 +59,18 @@ body {
   color: var(--text-color);
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 #app {
   min-height: 100svh;
   display: grid;
@@ -434,6 +446,50 @@ textarea {
   .paid-badge {
     background: #451a03;
     color: #fcd34d;
+  }
+}
+
+/* ── Mobile-only guard overlay (CSS fallback for non-mobile viewports) ──────
+   Fires when viewport is ≥ 768 px wide — covers the app with a friendly
+   message even if the JS redirect above was somehow bypassed.            */
+@media (min-width: 768px) {
+  #mobile-guard {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: #f5f7fb;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    text-align: center;
+  }
+
+  #mobile-guard::before {
+    content: "📱";
+    font-size: 3.5rem;
+    margin-bottom: 1rem;
+    display: block;
+  }
+
+  #mobile-guard::after {
+    content: "Letter Quest is designed for smartphones.\APlease open this link on your iPhone or Android phone.";
+    white-space: pre;
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    font-size: 1.1rem;
+    line-height: 1.8;
+    color: #1f2937;
+    max-width: 400px;
+  }
+}
+
+@media (min-width: 768px) and (prefers-color-scheme: dark) {
+  #mobile-guard {
+    background: #0f172a;
+  }
+  #mobile-guard::after {
+    color: #e5e7eb;
   }
 }
 
