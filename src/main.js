@@ -29,6 +29,7 @@ import { createLocationTracking } from './main/locationTracking.js';
 import { downloadGameOffline, loadCachedGame } from './main/offlineSync.js';
 import {
   appendNextLocation,
+  buildStartingRoute,
   computeRemainingCooldownMs,
   normalizeRoute,
   shouldAutoResumeTracking as shouldAutoResumeTrackingFromState,
@@ -606,6 +607,17 @@ async function skipQuestion() {
   updateUi();
 
   try {
+    if (state.offlineMode) {
+      state.pendingQuestion = false;
+      state.answerAttempts = 0;
+      state.questionStartedAt = 0;
+      await recordProgressEvent(SCORE_EVENT_TYPES.ARRIVAL_CONFIRMED);
+      await recordProgressEvent(SCORE_EVENT_TYPES.QUESTION_SKIPPED);
+      state.statusMessage = tm('questionSkippedPenalty');
+      completeCurrentLocation(null);
+      return;
+    }
+
     const res = await fetch(await edgeFunctionUrl('confirm-arrival'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
@@ -658,8 +670,12 @@ async function startNextRoute() {
   updateUi();
 
   try {
-    const firstLocation = await fetchRouteStart(nextRoute.id, state.requiresPayment ? state.paymentToken : null);
-    state.route = [firstLocation];
+    if (state.offlineMode) {
+      state.route = buildStartingRoute(nextRoute, null, true);
+    } else {
+      const firstLocation = await fetchRouteStart(nextRoute.id, state.requiresPayment ? state.paymentToken : null);
+      state.route = buildStartingRoute(nextRoute, firstLocation, false);
+    }
     state.statusMessage = tm('nextRouteStarted', { name: nextRoute.display_name });
     saveSession();
   } catch {
@@ -757,8 +773,9 @@ async function loadGame() {
         state.winnerName = winnerName;
         state.winnerPhone = winnerPhone;
       } else {
-        // Free game: name prompt will be shown by updateUi before location is enabled
-        state.nameConfirmed = false;
+        // Free game: name prompt is needed only in live mode.
+        // Offline mode is entered after an explicit download flow that already passed this step.
+        state.nameConfirmed = Boolean(useOfflineCache);
       }
 
       // Load game data from cache if available, otherwise from server

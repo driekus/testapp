@@ -313,6 +313,41 @@ test('updateUi shows optional name gate for free games before start', () => {
   fixture.restore();
 });
 
+test('updateUi does not re-show free-name gate in offline mode', () => {
+  const fixture = createFixture();
+  const state = {
+    ...baseState(),
+    gameId: 'game-1',
+    requiresPayment: false,
+    supportsOffline: true,
+    offlineMode: true,
+    nameConfirmed: false,
+    geoWatchId: null,
+  };
+
+  const ui = createUiController({
+    state,
+    tm: (key) => key,
+    formatEuro: (cents) => `EUR ${cents}`,
+    buildRankingsUrl: (slug) => `/rankings.html?slug=${slug}`,
+    slug: 'demo',
+    distanceMeters: () => 10,
+    constants: {
+      LOCATION_RADIUS_METERS: 5,
+      MAX_ALLOWED_GPS_ACCURACY_METERS: 11,
+    },
+  });
+
+  const els = ui.getEls();
+  ui.setElements(els);
+  ui.updateUi();
+
+  assert.equal(els.cardName.classList.contains('hidden'), true);
+  assert.equal(els.cardLocation.classList.contains('hidden'), false);
+
+  fixture.restore();
+});
+
 test('updateUi keeps offline download card hidden for restored sessions', () => {
   const fixture = createFixture();
   const state = {
@@ -347,4 +382,3 @@ test('updateUi keeps offline download card hidden for restored sessions', () => 
 
   fixture.restore();
 });
-

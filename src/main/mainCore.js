@@ -35,6 +35,21 @@ export function appendNextLocation(route, next) {
 }
 
 /**
+ * Build the active route payload when starting a route.
+ * Offline mode uses the fully cached route; online mode uses only the first safe location.
+ * @param {{route?: Array}|null|undefined} nextRoute
+ * @param {object|null|undefined} firstLocation
+ * @param {boolean} offlineMode
+ * @returns {Array}
+ */
+export function buildStartingRoute(nextRoute, firstLocation, offlineMode) {
+  if (offlineMode) {
+    return normalizeRoute(nextRoute?.route ?? []);
+  }
+  return firstLocation ? [firstLocation] : [];
+}
+
+/**
  * Decide whether location tracking should auto-resume for restored sessions.
  * @param {{currentLocationIndex:number,collectedLetters:Array,routeComplete:boolean}} state
  * @returns {boolean}
@@ -46,4 +61,3 @@ export function shouldAutoResumeTracking(state) {
     Boolean(state?.routeComplete)
   );
 }
-
