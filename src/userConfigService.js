@@ -122,7 +122,7 @@ export async function fetchGameWithRoutes(slug) {
     .map((r) => ({ ...r, route: sanitizeRoute(r.route) }));
 
   // Final answer is stored in a protected table so gameplay clients cannot read it.
-  let finalAnswer = '';
+  let finalAnswer;
   try {
     const { data: answerRow } = await withTimeout(
       runtimeSupabase
@@ -146,7 +146,7 @@ export async function fetchGameWithRoutes(slug) {
      price_in_cents: data.price_in_cents ?? 0,
      supports_offline: data.supports_offline ?? false,
      final_question: String(data.final_question ?? ''),
-     final_answer: finalAnswer,
+      final_answer: String(finalAnswer ?? ''),
      routes,
    };
  }

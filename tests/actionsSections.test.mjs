@@ -9,6 +9,10 @@ function createDeps(overrides = {}) {
     setGameStatus: [],
     saveGame: [],
     createRoute: [],
+    saveRoute: [],
+    deleteRoute: [],
+    deleteGame: [],
+    signInWithGitHub: [],
     syncFormFromRoute: [],
     renderRouteTabs: 0,
     updateAuthUi: 0,
@@ -62,10 +66,10 @@ function createDeps(overrides = {}) {
       calls.createRoute.push(args);
       return { id: 'route-1' };
     },
-    deleteGame: async () => {},
+    deleteGame: async (slug) => { calls.deleteGame.push(slug); },
     saveGameStyles: async () => {},
-    saveRoute: async () => {},
-    deleteRoute: async () => {},
+    saveRoute: async (...args) => { calls.saveRoute.push(args); },
+    deleteRoute: async (id) => { calls.deleteRoute.push(id); },
     setStatus: (msg, isError = false) => calls.setStatus.push({ msg, isError }),
     setGameStatus: (msg, isError = false) => calls.setGameStatus.push({ msg, isError }),
     sanitizeSlugInput: (value) => value.trim().toLowerCase(),
@@ -91,6 +95,32 @@ function createDeps(overrides = {}) {
 
   return { deps, calls };
 }
+
+test('auth handlers update status for missing credentials and github redirect success', async () => {
+  const { deps, calls } = createDeps({
+    signInWithGitHub: async (...args) => {
+      calls.signInWithGitHub.push(args);
+    },
+  });
+  const actions = createActionsSections(deps);
+
+  const originalWindow = globalThis.window;
+  globalThis.window = { location: { origin: 'https://example.test' } };
+
+  try {
+    deps.els.authEmail.value = '';
+    deps.els.authPassword.value = '';
+    await actions.handleSignIn();
+    assert.match(deps.state.authStatusMessage, /signInFailed/);
+
+    await actions.handleSignInGitHub();
+    assert.equal(calls.signInWithGitHub.length, 1);
+    assert.equal(calls.signInWithGitHub[0][0], 'https://example.test/admin.html');
+    assert.match(deps.state.authStatusMessage, /redirectingGitHub/);
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});
 
 test('handleSaveDisplayName saves payment + offline flags', async () => {
   const { deps, calls } = createDeps();
@@ -149,5 +179,87 @@ test('handleDeleteRoute blocks deleting the last route', async () => {
 
   assert.equal(calls.setStatus.at(-1).isError, true);
   assert.match(calls.setStatus.at(-1).msg, /cannotDeleteLastRoute/);
+});
+
+test('handleSaveRoute updates existing route and creates id for unsaved route', async () => {
+  const { deps, calls } = createDeps({
+    collectRouteFromInputs: () => [{ name: 'Updated' }],
+    createRoute: async (...args) => {
+      calls.createRoute.push(args);
+      return { id: 'created-route' };
+    },
+  });
+  deps.state.routes = [
+    { id: 'r-1', order_index: 0, display_name: 'Route 1', route: [{ name: 'A' }] },
+    { id: null, order_index: 1, display_name: 'Route 2', route: [{ name: 'B' }] },
+  ];
+  deps.state.currentRouteIndex = 0;
+  deps.els.routeDisplayNameInput.value = 'Existing Route';
+  const actions = createActionsSections(deps);
+
+  await actions.handleSaveRoute();
+  assert.equal(calls.saveRoute.length, 1);
+  assert.deepEqual(calls.saveRoute[0], ['r-1', 'Existing Route', [{ name: 'Updated' }]]);
+
+  deps.state.currentRouteIndex = 1;
+  deps.els.routeDisplayNameInput.value = 'New Route';
+  await actions.handleSaveRoute();
+  assert.equal(calls.createRoute.length, 1);
+  assert.equal(deps.state.routes[1].id, 'created-route');
+});
+
+test('handleDeleteGame and handleDeleteRoute honor confirm and mutate state on success', async () => {
+  const { deps, calls } = createDeps();
+  deps.state.routes = [
+    { id: 'r1', order_index: 0, display_name: 'Route 1', route: [{ name: 'A' }] },
+    { id: 'r2', order_index: 1, display_name: 'Route 2', route: [{ name: 'B' }] },
+  ];
+  deps.state.currentRouteIndex = 1;
+  const actions = createActionsSections(deps);
+
+  const originalConfirm = globalThis.confirm;
+  globalThis.confirm = () => false;
+  try {
+    await actions.handleDeleteGame();
+    await actions.handleDeleteRoute();
+    assert.equal(calls.deleteGame.length, 0);
+    assert.equal(calls.deleteRoute.length, 0);
+  } finally {
+    globalThis.confirm = originalConfirm;
+  }
+
+  globalThis.confirm = () => true;
+  try {
+    await actions.handleDeleteRoute();
+    assert.equal(calls.deleteRoute.length, 1);
+    assert.equal(deps.state.routes.length, 1);
+    assert.equal(deps.state.currentRouteIndex, 0);
+
+    await actions.handleDeleteGame();
+    assert.deepEqual(calls.deleteGame, ['demo']);
+    assert.equal(deps.state.currentSlug, null);
+    assert.equal(deps.state.routes.length, 0);
+  } finally {
+    globalThis.confirm = originalConfirm;
+  }
+});
+
+test('handleResetDefaults restores cloned default route values', async () => {
+  const defaultRoute = [{ name: 'Location 1', lat: 1 }, { name: 'Location 2', lat: 2 }];
+  const { deps } = createDeps({
+    DEFAULT_ROUTE: defaultRoute,
+    DEFAULT_ROUTE_LENGTH: 2,
+  });
+  deps.state.routes = [
+    { id: 'r1', order_index: 0, display_name: 'Route 1', route: [{ name: 'Old', lat: 9 }] },
+  ];
+  deps.state.currentRouteIndex = 0;
+  const actions = createActionsSections(deps);
+
+  await actions.handleResetDefaults();
+
+  assert.equal(deps.state.routes[0].route.length, 2);
+  assert.equal(deps.state.routes[0].route[0].name, 'Location 1');
+  assert.notEqual(deps.state.routes[0].route[0], defaultRoute[0]);
 });
 

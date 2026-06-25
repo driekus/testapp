@@ -47,6 +47,73 @@ test('downloadGameOffline validates slug and handles function errors', async () 
   }
 });
 
+test('downloadGameOffline handles missing game payload, storage failures and thrown fetch', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalStorage = globalThis.localStorage;
+
+  globalThis.localStorage = {
+    setItem() {
+      throw new Error('quota');
+    },
+    getItem() {
+      return null;
+    },
+    removeItem() {},
+  };
+
+  globalThis.fetch = async () => ({
+    ok: true,
+    async json() {
+      return {};
+    },
+  });
+
+  try {
+    const missingGame = await downloadGameOffline('demo');
+    assert.equal(missingGame.success, false);
+    assert.match(missingGame.error, /No game data returned/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.localStorage = originalStorage;
+  }
+
+  globalThis.localStorage = {
+    setItem() {
+      throw new Error('quota');
+    },
+    getItem() {
+      return null;
+    },
+    removeItem() {},
+  };
+  globalThis.fetch = async () => ({
+    ok: true,
+    async json() {
+      return { game: { slug: 'demo' } };
+    },
+  });
+
+  try {
+    const storageFail = await downloadGameOffline('demo');
+    assert.equal(storageFail.success, false);
+    assert.match(storageFail.error, /Failed to store cache/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.localStorage = originalStorage;
+  }
+
+  globalThis.fetch = async () => {
+    throw new Error('network down');
+  };
+  try {
+    const thrown = await downloadGameOffline('demo');
+    assert.equal(thrown.success, false);
+    assert.match(thrown.error, /network down/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('downloadGameOffline stores cache and cache helpers read it', async () => {
   const originalFetch = globalThis.fetch;
   const originalStorage = globalThis.localStorage;
@@ -105,6 +172,29 @@ test('loadCachedGame removes expired entries', () => {
     assert.equal(storage.getItem(key), null);
     assert.equal(isGameCached('demo'), false);
     assert.equal(getCacheExpiryString('demo'), null);
+  } finally {
+    globalThis.localStorage = originalStorage;
+  }
+});
+
+test('cache helpers safely handle invalid json and storage errors', () => {
+  const originalStorage = globalThis.localStorage;
+
+  globalThis.localStorage = {
+    getItem() {
+      return '{broken';
+    },
+    setItem() {},
+    removeItem() {
+      throw new Error('readonly');
+    },
+  };
+
+  try {
+    assert.equal(isGameCached('demo'), false);
+    assert.equal(loadCachedGame('demo'), null);
+    assert.equal(getCacheExpiryString('demo'), null);
+    assert.doesNotThrow(() => clearGameCache('demo'));
   } finally {
     globalThis.localStorage = originalStorage;
   }

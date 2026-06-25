@@ -52,7 +52,9 @@ Deno.serve(async (req) => {
       .eq('id', game_id)
       .maybeSingle();
 
-    if (gameError) throw gameError;
+    if (gameError) {
+      return Response.json({ error: toErrorMessage(gameError) }, { status: 500, headers: CORS });
+    }
     if (!game) {
       return Response.json({ error: 'Game not found' }, { status: 404, headers: CORS });
     }
@@ -63,7 +65,9 @@ Deno.serve(async (req) => {
       .eq('game_id', game_id)
       .maybeSingle();
 
-    if (answerError) throw answerError;
+    if (answerError) {
+      return Response.json({ error: toErrorMessage(answerError) }, { status: 500, headers: CORS });
+    }
 
     if (!String(game.final_question ?? '').trim() || !String(answerRow?.final_answer ?? '').trim()) {
       return Response.json({ error: 'No final question configured for this game' }, { status: 400, headers: CORS });
@@ -82,7 +86,9 @@ Deno.serve(async (req) => {
         .eq('paid', true)
         .maybeSingle();
 
-      if (paymentError) throw paymentError;
+      if (paymentError) {
+        return Response.json({ error: toErrorMessage(paymentError) }, { status: 500, headers: CORS });
+      }
       if (!session) {
         return Response.json({ error: 'Invalid payment token' }, { status: 403, headers: CORS });
       }
@@ -102,7 +108,7 @@ Deno.serve(async (req) => {
           { status: 500, headers: CORS },
         );
       }
-      throw existingAttemptError;
+      return Response.json({ error: toErrorMessage(existingAttemptError) }, { status: 500, headers: CORS });
     }
 
     if (existingAttempt) {
@@ -158,7 +164,7 @@ Deno.serve(async (req) => {
           { headers: CORS },
         );
       }
-      throw insertError;
+      return Response.json({ error: toErrorMessage(insertError) }, { status: 500, headers: CORS });
     }
 
     return Response.json(

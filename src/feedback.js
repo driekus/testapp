@@ -37,7 +37,6 @@ const {
   finalScore,
   totalAnswerTimeMs,
   playerId,
-  playerSessionId,
   winnerName,
   winnerPhone,
   offlineMode,
@@ -145,7 +144,7 @@ async function doSetScoreDisplayName() {
     name,
     gameId,
     playerId,
-    playerSessionId: data?.playerSessionId,
+    playerSessionId,
     paymentToken,
   });
   if (!op) return;

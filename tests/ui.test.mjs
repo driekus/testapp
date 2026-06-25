@@ -46,7 +46,8 @@ function createFixture() {
     '#game-title', '#paid-badge', '#config-status', '#card-payment', '#payment-message', '#pay-and-play',
     '#card-offline', '#offline-message', '#download-offline', '#offline-status',
     '#card-name', '#player-name-input', '#start-with-name', '#card-target', '#card-progress', '#card-location',
-    '#card-status', '#card-question', '#question-text', '#answer-input', '#answer-feedback', '#submit-answer',
+    '#card-status', '#card-question', '#question-text', '#toggle-question-hint', '#question-hint-image', '#question-hint-description',
+    '#answer-input', '#answer-feedback', '#submit-answer',
     '#skip-question', '#route-badge', '#target-name', '#game-logo', '#location-image', '#location-description',
     '#distance', '#progress', '#letters', '#score-total', '#score-toast', '#status', '#pending-letter',
     '#rankings-link', '#enable-location', '#confirm-letter', '#next-route',
@@ -382,3 +383,142 @@ test('updateUi keeps offline download card hidden for restored sessions', () => 
 
   fixture.restore();
 });
+
+test('updateUi renders question hint assets and toggles visibility', () => {
+  const fixture = createFixture();
+  const state = {
+    ...baseState(),
+    gameId: 'game-1',
+    geoWatchId: 1,
+    gameRoutes: [{ id: 'r1', display_name: 'Route 1' }],
+    route: [{
+      name: 'Target 1',
+      lat: 1,
+      lng: 2,
+      question: 'Q?',
+      max_attempts: 0,
+      image_url: 'https://img/hint.png',
+      description: 'Hint text',
+    }],
+    pendingQuestion: true,
+    hintVisible: true,
+  };
+
+  const ui = createUiController({
+    state,
+    tm: (key) => key,
+    formatEuro: (cents) => `EUR ${cents}`,
+    buildRankingsUrl: (slug) => `/rankings.html?slug=${slug}`,
+    slug: 'demo',
+    distanceMeters: () => 10,
+    constants: {
+      LOCATION_RADIUS_METERS: 5,
+      MAX_ALLOWED_GPS_ACCURACY_METERS: 11,
+    },
+  });
+
+  const els = ui.getEls();
+  ui.setElements(els);
+
+  ui.updateUi();
+  assert.equal(els.toggleQuestionHint.classList.contains('hidden'), false);
+  assert.equal(els.questionHintImage.classList.contains('hidden'), false);
+  assert.equal(els.questionHintImage.src, 'https://img/hint.png');
+  assert.equal(els.questionHintDescription.classList.contains('hidden'), false);
+  assert.equal(els.questionHintDescription.textContent, 'Hint text');
+
+  state.hintVisible = false;
+  ui.updateUi();
+  assert.equal(els.questionHintImage.classList.contains('hidden'), true);
+  assert.equal(els.questionHintDescription.classList.contains('hidden'), true);
+
+  fixture.restore();
+});
+
+test('updateUi handles all-complete, between-routes and current-target-missing branches', () => {
+  const fixture = createFixture();
+  const state = {
+    ...baseState(),
+    gameId: 'game-1',
+    geoWatchId: 1,
+    gameRoutes: [{ id: 'r1', display_name: 'Route 1' }],
+    route: [{ name: 'A', lat: 1, lng: 1 }],
+  };
+
+  const ui = createUiController({
+    state,
+    tm: (key, params = {}) => `${key}:${JSON.stringify(params)}`,
+    formatEuro: (cents) => `EUR ${cents}`,
+    buildRankingsUrl: (slug) => `/rankings.html?slug=${slug}`,
+    slug: 'demo',
+    distanceMeters: () => 10,
+    constants: {
+      LOCATION_RADIUS_METERS: 5,
+      MAX_ALLOWED_GPS_ACCURACY_METERS: 11,
+    },
+  });
+
+  const els = ui.getEls();
+  ui.setElements(els);
+
+  state.currentRouteIndex = 1;
+  ui.updateUi();
+  assert.match(els.targetName.textContent, /^allCompleted/);
+  assert.equal(els.confirmLetter.disabled, true);
+
+  state.currentRouteIndex = 0;
+  state.routeComplete = true;
+  ui.updateUi();
+  assert.equal(els.nextRoute.classList.contains('hidden'), false);
+  assert.match(els.nextRoute.textContent, /^startNextRouteNamed/);
+
+  state.routeComplete = false;
+  state.route = [];
+  ui.updateUi();
+  assert.match(els.targetName.textContent, /^allCompleted/);
+
+  fixture.restore();
+});
+
+test('updateUi sets pending-letter button labels and distance unknown fallback', () => {
+  const fixture = createFixture();
+  const state = {
+    ...baseState(),
+    gameId: 'game-1',
+    geoWatchId: 1,
+    gameRoutes: [{ id: 'r1', display_name: 'Route 1' }, { id: 'r2', display_name: 'Route 2' }],
+    route: [{ name: 'Target', lat: 1, lng: 2 }],
+    currentLocationIndex: 0,
+    currentRouteIndex: 0,
+    pendingLetter: 'K',
+    userPosition: null,
+  };
+
+  const ui = createUiController({
+    state,
+    tm: (key, params = {}) => `${key}:${JSON.stringify(params)}`,
+    formatEuro: (cents) => `EUR ${cents}`,
+    buildRankingsUrl: (slug) => `/rankings.html?slug=${slug}`,
+    slug: 'demo',
+    distanceMeters: () => 10,
+    constants: {
+      LOCATION_RADIUS_METERS: 5,
+      MAX_ALLOWED_GPS_ACCURACY_METERS: 11,
+    },
+  });
+
+  const els = ui.getEls();
+  ui.setElements(els);
+
+  ui.updateUi();
+  assert.match(els.confirmLetter.textContent, /^confirmAndNext/);
+  assert.match(els.distance.textContent, /^distanceUnknown/);
+  assert.equal(els.routeBadge.classList.contains('hidden'), false);
+
+  state.currentRouteIndex = 1;
+  ui.updateUi();
+  assert.match(els.confirmLetter.textContent, /^confirmAndFinish/);
+
+  fixture.restore();
+});
+

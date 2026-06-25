@@ -4,6 +4,14 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient.js';
 import { loadGameStyles } from './gameStyleService.js';
 import { SCORE_EVENT_TYPES, recordScoreEvent } from './scoreService.js';
 import { buildFeedbackContext, parseFeedbackSession } from './feedbackCore.js';
+import {
+  ATTEMPTS_STORAGE_KEY,
+  buildAttemptScopeKey,
+  getStoredAttemptForScope,
+  readAttemptStore as readAttemptStoreCore,
+  rememberAttemptInStore,
+  writeAttemptStore as writeAttemptStoreCore,
+} from './finalQuestionCore.js';
 import { validateAnswerLocally } from './gameLogic.js';
 import {
   addOfflineBeforeUnloadGuard,
@@ -12,7 +20,6 @@ import {
 
 const language = getLanguage();
 const tm = (key, params) => t(language, 'main', key, params);
-const ATTEMPTS_STORAGE_KEY = 'letter-quest-final-question-attempts';
 
 const data = parseFeedbackSession(sessionStorage);
 const {
@@ -57,7 +64,7 @@ const statusEl = document.querySelector('#final-question-status');
 const submitBtn = document.querySelector('#submit-final-question-btn');
 const continueBtn = document.querySelector('#continue-to-feedback-btn');
 const offlineNoticeEl = document.querySelector('#offline-final-question-notice');
-const attemptScopeKey = `${gameId}::${playerSessionId}`;
+const attemptScopeKey = buildAttemptScopeKey(gameId, playerSessionId);
 let answerLocked = false;
 
 if (pageTitleEl) pageTitleEl.textContent = tm('finalQuestionTitle');
@@ -89,40 +96,22 @@ function setContinueEnabled(enabled) {
 }
 
 function readAttemptStore() {
-  try {
-    const raw = localStorage.getItem(ATTEMPTS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+  return readAttemptStoreCore(localStorage, ATTEMPTS_STORAGE_KEY);
 }
 
 function writeAttemptStore(nextStore) {
-  try {
-    localStorage.setItem(ATTEMPTS_STORAGE_KEY, JSON.stringify(nextStore));
-  } catch {
-    // Ignore unavailable storage.
-  }
+  writeAttemptStoreCore(localStorage, nextStore, ATTEMPTS_STORAGE_KEY);
 }
 
 function getStoredAttempt() {
   const store = readAttemptStore();
-  const scoped = store?.[attemptScopeKey];
-  if (!scoped || typeof scoped !== 'object') return null;
-  return {
-    answered: Boolean(scoped.answered),
-    correct: Boolean(scoped.correct),
-  };
+  return getStoredAttemptForScope(store, attemptScopeKey);
 }
 
 function rememberAttempt(correct) {
   const store = readAttemptStore();
-  store[attemptScopeKey] = {
-    answered: true,
-    correct: Boolean(correct),
-    updatedAt: Date.now(),
-  };
-  writeAttemptStore(store);
+  const nextStore = rememberAttemptInStore(store, attemptScopeKey, correct);
+  writeAttemptStore(nextStore);
 }
 
 function lockAnsweredUi(correct, options = {}) {

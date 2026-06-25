@@ -6,6 +6,18 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function toErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === 'object' && 'message' in err) {
+    return String((err as { message?: unknown }).message ?? 'Unknown error');
+  }
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
 type EventType =
   | 'location_found'
   | 'arrival_confirmed'
@@ -140,7 +152,7 @@ Deno.serve(async (req) => {
       });
 
     if (insertEventError && insertEventError.code !== '23505') {
-      throw insertEventError;
+      return Response.json({ error: toErrorMessage(insertEventError) }, { status: 500, headers: CORS });
     }
 
     const duplicate = insertEventError?.code === '23505';
@@ -152,7 +164,9 @@ Deno.serve(async (req) => {
       .eq('player_session_id', player_session_id)
       .maybeSingle();
 
-    if (existingScoreError) throw existingScoreError;
+    if (existingScoreError) {
+      return Response.json({ error: toErrorMessage(existingScoreError) }, { status: 500, headers: CORS });
+    }
 
     const safeDisplayName = String(display_name ?? '').trim() || null;
 
@@ -175,7 +189,9 @@ Deno.serve(async (req) => {
         .select('*')
         .single();
 
-      if (createScoreError) throw createScoreError;
+      if (createScoreError) {
+        return Response.json({ error: toErrorMessage(createScoreError) }, { status: 500, headers: CORS });
+      }
 
       return Response.json(
         {
@@ -210,7 +226,9 @@ Deno.serve(async (req) => {
       .select('*')
       .single();
 
-    if (updateScoreError) throw updateScoreError;
+    if (updateScoreError) {
+      return Response.json({ error: toErrorMessage(updateScoreError) }, { status: 500, headers: CORS });
+    }
 
     return Response.json(
       {
@@ -221,7 +239,7 @@ Deno.serve(async (req) => {
       { headers: CORS },
     );
   } catch (err) {
-    return Response.json({ error: String(err) }, { status: 500, headers: CORS });
+    return Response.json({ error: toErrorMessage(err) }, { status: 500, headers: CORS });
   }
 });
 
