@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
 
     const { data, error } = await supabase
       .from('games')
-      .select('id, slug, display_name, logo_url, requires_payment, price_in_cents, supports_offline, routes(id, order_index, display_name, route)')
+      .select('id, slug, display_name, logo_url, requires_payment, price_in_cents, supports_offline, final_question, routes(id, order_index, display_name, route)')
       .eq('slug', slug)
       .maybeSingle();
 
@@ -64,6 +64,7 @@ Deno.serve(async (req) => {
           requires_payment: data.requires_payment ?? false,
           price_in_cents: data.price_in_cents ?? 0,
           supports_offline: data.supports_offline ?? false,
+          final_question: data.final_question ?? '',
           routes: routesMeta,
           start_location: startLocation,
         },
@@ -71,6 +72,7 @@ Deno.serve(async (req) => {
       { headers: CORS },
     );
   } catch (err) {
-    return Response.json({ error: String(err) }, { status: 500, headers: CORS });
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    return Response.json({ error: errorMessage }, { status: 500, headers: CORS });
   }
 });

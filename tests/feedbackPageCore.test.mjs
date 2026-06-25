@@ -41,10 +41,10 @@ test('resolveFeedbackError prefers API error then status text then fallback', ()
   assert.equal(resolveFeedbackError({}, '', 'fallback'), 'fallback');
 });
 
-test('shouldBlockRankingsNavigation only blocks offline runs without connectivity', () => {
+test('shouldBlockRankingsNavigation blocks any navigation attempt while offline', () => {
   assert.equal(shouldBlockRankingsNavigation(true, { onLine: false }), true);
   assert.equal(shouldBlockRankingsNavigation(true, { onLine: true }), false);
-  assert.equal(shouldBlockRankingsNavigation(false, { onLine: false }), false);
+  assert.equal(shouldBlockRankingsNavigation(false, { onLine: false }), true);
   assert.equal(shouldBlockRankingsNavigation(true, null), false);
 });
 

@@ -110,6 +110,38 @@ end $$;
 alter table public.games add column if not exists requires_payment boolean not null default false;
 alter table public.games add column if not exists price_in_cents   integer  not null default 0;
 alter table public.games add column if not exists supports_offline boolean not null default false;
+alter table public.games add column if not exists final_question   text     not null default '';
+alter table public.games add column if not exists final_answer     text     not null default '';
+
+-- -----------------------------------------------------------------------------
+-- game_final_answers — protected store for final-question answers
+-- -----------------------------------------------------------------------------
+create table if not exists public.game_final_answers (
+  game_id      uuid        primary key references public.games(id) on delete cascade,
+  final_answer text        not null default '',
+  updated_at   timestamptz not null default now()
+);
+
+alter table public.game_final_answers enable row level security;
+
+drop policy if exists "Authenticated users can read game_final_answers"   on public.game_final_answers;
+drop policy if exists "Authenticated users can insert game_final_answers" on public.game_final_answers;
+drop policy if exists "Authenticated users can update game_final_answers" on public.game_final_answers;
+drop policy if exists "Authenticated users can delete game_final_answers" on public.game_final_answers;
+
+create policy "Authenticated users can read game_final_answers"
+  on public.game_final_answers for select using (auth.role() = 'authenticated');
+
+create policy "Authenticated users can insert game_final_answers"
+  on public.game_final_answers for insert with check (auth.role() = 'authenticated');
+
+create policy "Authenticated users can update game_final_answers"
+  on public.game_final_answers for update
+  using (auth.role() = 'authenticated')
+  with check (auth.role() = 'authenticated');
+
+create policy "Authenticated users can delete game_final_answers"
+  on public.game_final_answers for delete using (auth.role() = 'authenticated');
 
 -- -----------------------------------------------------------------------------
 -- payment_sessions — one row per payment attempt
@@ -271,6 +303,29 @@ create policy "Service role manages score events"
   with check (auth.role() = 'service_role');
 
 -- -----------------------------------------------------------------------------
+-- final_question_attempts — one final-question attempt per play session
+-- -----------------------------------------------------------------------------
+create table if not exists public.final_question_attempts (
+  id                      uuid        primary key default gen_random_uuid(),
+  game_id                 uuid        not null references public.games(id) on delete cascade,
+  player_id               text        not null,
+  player_session_id       text        not null,
+  submitted_answer        text        not null,
+  is_correct              boolean     not null default false,
+  created_at              timestamptz not null default now(),
+  unique (game_id, player_session_id)
+);
+
+alter table public.final_question_attempts enable row level security;
+
+drop policy if exists "Service role manages final question attempts" on public.final_question_attempts;
+
+create policy "Service role manages final question attempts"
+  on public.final_question_attempts
+  using (auth.role() = 'service_role')
+  with check (auth.role() = 'service_role');
+
+-- -----------------------------------------------------------------------------
 -- Storage bucket for location images (public read, authenticated write)
 -- -----------------------------------------------------------------------------
 insert into storage.buckets (id, name, public)
@@ -292,3 +347,7 @@ create policy "Authenticated upload location images"
 create policy "Authenticated delete location images"
   on storage.objects for delete
   using (bucket_id = 'location-images' and auth.role() = 'authenticated');
+
+-- Refresh PostgREST schema cache after DDL changes.
+notify pgrst, 'reload schema';
+

@@ -36,6 +36,8 @@ export function createSessionStore({ sessionKey, storage, state }) {
         totalAnswerTimeMs: state.totalAnswerTimeMs,
         questionStartedAt: state.questionStartedAt,
         offlineMode: state.offlineMode,
+        finalQuestionPrompt: state.finalQuestionPrompt,
+        finalQuestionAnswer: state.finalQuestionAnswer,
       }));
     } catch {
       // Ignore storage failures (full/unavailable).

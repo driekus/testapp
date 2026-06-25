@@ -2,13 +2,14 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from './supabaseClient.js';
 
 /**
  * Enum-like map of score event type string constants.
- * @type {{ LOCATION_FOUND: string, ARRIVAL_CONFIRMED: string, ANSWER_CORRECT: string, QUESTION_SKIPPED: string }}
+ * @type {{ LOCATION_FOUND: string, ARRIVAL_CONFIRMED: string, ANSWER_CORRECT: string, QUESTION_SKIPPED: string, FINAL_QUESTION_CORRECT: string }}
  */
 export const SCORE_EVENT_TYPES = {
   LOCATION_FOUND: 'location_found',
   ARRIVAL_CONFIRMED: 'arrival_confirmed',
   ANSWER_CORRECT: 'answer_correct',
   QUESTION_SKIPPED: 'question_skipped',
+  FINAL_QUESTION_CORRECT: 'final_question_correct',
 };
 
 /**

@@ -212,3 +212,44 @@ test('close button redirects to lobby when clicked', async () => {
   assert.match(replaced, /^\/\?refresh=/);
 });
 
+test('offline rankings actions require confirm before navigating away', async () => {
+  const els = createEls();
+  let replaced = '';
+  let confirmCalls = 0;
+  await loadRankingsView({
+    slug: 'demo',
+    playerId: 'player-1',
+    els,
+    tm,
+    buildRankingsUrl: (slug) => `/rankings.html?slug=${slug}`,
+    fetchGameForPlay: async () => ({ id: 'g1' }),
+    loadGameStyles: async () => {},
+    fetchScoreboard: async () => ({ top: [], mine: [] }),
+    windowRef: {
+      navigator: { onLine: false },
+      confirm() {
+        confirmCalls += 1;
+        return false;
+      },
+      location: {
+        replace(url) {
+          replaced = url;
+        },
+      },
+    },
+    createElement,
+  });
+
+  els.closeBtn.onclick();
+  assert.equal(replaced, '');
+
+  let prevented = false;
+  els.refreshLink.onclick({
+    preventDefault() {
+      prevented = true;
+    },
+  });
+  assert.equal(prevented, true);
+  assert.equal(confirmCalls, 2);
+});
+

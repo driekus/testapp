@@ -12,6 +12,6 @@
     }
   ],
   "rewrites": [
-    { "source": "/((?!admin\\.html$|feedback\\.html$|rankings\\.html$|winner\\.html$|mock-payment\\.html$|mobile-only\\.html$|assets/).*)", "destination": "/index.html" }
+    { "source": "/((?!admin\\.html$|feedback\\.html$|final-question\\.html$|rankings\\.html$|winner\\.html$|mock-payment\\.html$|mobile-only\\.html$|assets/).*)", "destination": "/index.html" }
   ]
 }

@@ -6,7 +6,12 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-type EventType = 'location_found' | 'arrival_confirmed' | 'answer_correct' | 'question_skipped'
+type EventType =
+  | 'location_found'
+  | 'arrival_confirmed'
+  | 'answer_correct'
+  | 'question_skipped'
+  | 'final_question_correct'
 
 function answerPointsForAttempt(attemptNumber: number) {
   if (attemptNumber <= 1) return 10;
@@ -55,6 +60,17 @@ function calculateDelta(eventType: EventType, attemptNumber: number, answerTimeM
     };
   }
 
+  if (eventType === 'final_question_correct') {
+    return {
+      scoreDelta: 50,
+      locationDelta: 0,
+      arrivalDelta: 0,
+      answeredDelta: 0,
+      skippedDelta: 0,
+      answerTimeDelta: 0,
+    };
+  }
+
   const attemptPoints = answerPointsForAttempt(attemptNumber);
   const bonus = timeBonus(answerTimeMs);
   return {
@@ -91,7 +107,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    const validTypes: EventType[] = ['location_found', 'arrival_confirmed', 'answer_correct', 'question_skipped'];
+    const validTypes: EventType[] = [
+      'location_found',
+      'arrival_confirmed',
+      'answer_correct',
+      'question_skipped',
+      'final_question_correct',
+    ];
     if (validTypes.indexOf(event_type) === -1) {
       return Response.json({ error: 'Unsupported event_type' }, { status: 400, headers: CORS });
     }

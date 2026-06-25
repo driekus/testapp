@@ -19,7 +19,7 @@ export function ta(key, params) {
 /**
  * Build initial in-memory state for the admin app.
  * @param {boolean} hasConfig - Whether runtime Supabase credentials are present.
- * @returns {{ games: Array, currentGameId: string | null, currentSlug: string | null, currentRequiresPayment: boolean, currentPriceInCents: number, currentGameStyles: object, routes: Array, currentRouteIndex: number, selectedRowIndex: number, map: object | null, markerLayer: object | null, marker: object | null, user: object | null, authStatusMessage: string }}
+ * @returns {{ games: Array, currentGameId: string | null, currentSlug: string | null, currentRequiresPayment: boolean, currentPriceInCents: number, currentSupportsOffline: boolean, currentFinalQuestion: string, currentFinalAnswer: string, currentGameStyles: object, routes: Array, currentRouteIndex: number, selectedRowIndex: number, map: object | null, markerLayer: object | null, marker: object | null, user: object | null, authStatusMessage: string }}
  */
 export function createInitialState(hasConfig) {
   return {
@@ -29,6 +29,9 @@ export function createInitialState(hasConfig) {
     currentSlug: null,
     currentRequiresPayment: false,
     currentPriceInCents: 0,
+    currentSupportsOffline: false,
+    currentFinalQuestion: '',
+    currentFinalAnswer: '',
     currentGameStyles: {},
     // route management — array of {id, order_index, display_name, route, _dirty}
     routes: [],

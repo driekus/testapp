@@ -3,7 +3,11 @@ import { getLanguage, t } from './i18n.js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient.js';
 import { loadGameStyles } from './gameStyleService.js';
 import { markPlayed } from './payment.js';
-import { buildRankingsUrl, setScoreDisplayName, setScoreDisplayNameBySession } from './scoreService.js';
+import {
+  buildRankingsUrl,
+  setScoreDisplayName,
+  setScoreDisplayNameBySession,
+} from './scoreService.js';
 import { buildFeedbackContext, buildScoreNameOperation, parseFeedbackSession } from './feedbackCore.js';
 import {
   buildFeedbackPageCopy,
@@ -11,6 +15,11 @@ import {
   resolveFeedbackError,
   shouldBlockRankingsNavigation,
 } from './feedbackPageCore.js';
+import {
+  addOfflineBeforeUnloadGuard,
+  confirmOfflineNavigation,
+  runWithOfflineUnloadBypass,
+} from './offlineNavigationGuard.js';
 
 const language = getLanguage();
 /** Shortcut for translating keys from the `main` section in feedback view. */
@@ -28,6 +37,7 @@ const {
   finalScore,
   totalAnswerTimeMs,
   playerId,
+  playerSessionId,
   winnerName,
   winnerPhone,
   offlineMode,
@@ -59,7 +69,8 @@ document.querySelector('#feedback-text').placeholder = copy.placeholder;
 document.querySelector('#submit-feedback-btn').textContent = copy.submitLabel;
 document.querySelector('#skip-feedback-btn').textContent = copy.skipLabel;
 document.querySelector('#score-summary-title').textContent = copy.scoreTitle;
-document.querySelector('#score-summary-points').textContent = copy.scorePoints;
+const scoreSummaryPointsEl = document.querySelector('#score-summary-points');
+scoreSummaryPointsEl.textContent = copy.scorePoints;
 document.querySelector('#score-summary-time').textContent = copy.scoreTime;
 document.querySelector('#score-summary-time').classList.toggle('hidden', copy.hideScoreTime);
 
@@ -69,20 +80,39 @@ if (offlineNoticeEl && offlineMode) {
   offlineNoticeEl.classList.remove('hidden');
 }
 
+const offlineNavigationMessage = tm('offlineNavigationConfirm');
+addOfflineBeforeUnloadGuard({
+  windowRef: window,
+  navigatorRef: navigator,
+  message: offlineNavigationMessage,
+});
+
 // ─── Navigation ───────────────────────────────────────────────────────────────
 
 /** Navigate to the rankings page for the current game slug. */
 function goToRankings() {
   if (shouldBlockRankingsNavigation(offlineMode, navigator)) {
-    statusEl.textContent = tm('offlineRankingsUnavailable');
-    statusEl.classList.remove('hidden');
-    submitBtn.disabled = false;
-    skipBtn.disabled = false;
-    submitBtn.textContent = tm('feedbackSubmit');
-    skipBtn.textContent = tm('feedbackSkip');
-    return;
+    const allowed = confirmOfflineNavigation({
+      navigatorRef: navigator,
+      confirmRef: window.confirm?.bind(window),
+      message: offlineNavigationMessage,
+    });
+    if (!allowed) {
+      statusEl.textContent = tm('offlineNavigationCancelled');
+      statusEl.classList.remove('hidden');
+      submitBtn.disabled = false;
+      skipBtn.disabled = false;
+      submitBtn.textContent = tm('feedbackSubmit');
+      skipBtn.textContent = tm('feedbackSkip');
+      return;
+    }
   }
-  window.location.href = buildRankingsUrl(slug);
+  runWithOfflineUnloadBypass({
+    windowRef: window,
+    navigate: () => {
+      window.location.href = buildRankingsUrl(slug);
+    },
+  });
 }
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────
@@ -188,3 +218,5 @@ skipBtn.addEventListener('click', async () => {
   } catch { /* non-fatal */ }
   goToRankings();
 });
+
+

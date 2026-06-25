@@ -16,7 +16,7 @@ export function parseFeedbackSession(storage, key = 'letter-quest-feedback') {
 /**
  * Derive normalized feedback context values from a session payload.
  * @param {Record<string, unknown> | null} data - Parsed feedback session payload.
- * @returns {{ gameId: string, slug: string, requiresPayment: boolean, paymentToken: string | null, finalScore: number, totalAnswerTimeMs: number, playerId: string, winnerName: string, winnerPhone: string, offlineMode: boolean }}
+ * @returns {{ gameId: string, slug: string, requiresPayment: boolean, paymentToken: string | null, finalScore: number, totalAnswerTimeMs: number, playerId: string, playerSessionId: string, winnerName: string, winnerPhone: string, offlineMode: boolean, finalQuestionPrompt: string, finalQuestionAnswer: string }}
  */
 export function buildFeedbackContext(data) {
   return {
@@ -27,9 +27,12 @@ export function buildFeedbackContext(data) {
     finalScore: Number(data?.score) || 0,
     totalAnswerTimeMs: Number(data?.totalAnswerTimeMs) || 0,
     playerId: data?.playerId || '',
+    playerSessionId: data?.playerSessionId || '',
     winnerName: String(data?.winnerName ?? '').trim(),
     winnerPhone: String(data?.winnerPhone ?? '').trim(),
     offlineMode: Boolean(data?.offlineMode),
+    finalQuestionPrompt: String(data?.finalQuestionPrompt ?? '').trim(),
+    finalQuestionAnswer: String(data?.finalQuestionAnswer ?? '').trim(),
   };
 }
 

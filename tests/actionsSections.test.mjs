@@ -27,6 +27,8 @@ function createDeps(overrides = {}) {
       requiresPayment: { checked: true },
       priceEuros: { value: '2.50' },
       supportsOffline: { checked: true },
+      finalQuestion: { value: 'Final question?' },
+      finalAnswer: { value: 'Final answer' },
       routeDisplayNameInput: { value: 'Route 1' },
     },
     state: {
@@ -97,10 +99,12 @@ test('handleSaveDisplayName saves payment + offline flags', async () => {
   await actions.handleSaveDisplayName();
 
   assert.equal(calls.saveGame.length, 1);
-  assert.deepEqual(calls.saveGame[0], ['demo', 'Updated Game', true, 250, true]);
+  assert.deepEqual(calls.saveGame[0], ['demo', 'Updated Game', true, 250, true, 'Final question?', 'Final answer']);
   assert.equal(deps.state.currentRequiresPayment, true);
   assert.equal(deps.state.currentPriceInCents, 250);
   assert.equal(deps.state.currentSupportsOffline, true);
+  assert.equal(deps.state.currentFinalQuestion, 'Final question?');
+  assert.equal(deps.state.currentFinalAnswer, 'Final answer');
   assert.equal(deps.els.gameSelect.value, 'demo');
   assert.equal(calls.setStatus.at(-1).isError, false);
 });

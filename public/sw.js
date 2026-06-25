@@ -4,6 +4,7 @@ const APP_SHELL = [
   '/index.html',
   '/admin.html',
   '/feedback.html',
+  '/final-question.html',
   '/rankings.html',
   '/winner.html',
   '/mock-payment.html',

@@ -49,6 +49,7 @@ const SPA_REWRITES = [
   { from: /^\/admin\.html/, to: '/admin.html' },
   { from: /^\/rankings\.html/, to: '/rankings.html' },
   { from: /^\/feedback\.html/, to: '/feedback.html' },
+  { from: /^\/final-question\.html/, to: '/final-question.html' },
   { from: /^\/winner\.html/, to: '/winner.html' },
   { from: /^\/mock-payment\.html/, to: '/mock-payment.html' },
   // slug-based routes → index.html
@@ -72,6 +73,7 @@ export default defineConfig({
         main: 'index.html',
         admin: 'admin.html',
         feedback: 'feedback.html',
+        'final-question': 'final-question.html',
         rankings: 'rankings.html',
         winner: 'winner.html',
         'mock-payment': 'mock-payment.html',

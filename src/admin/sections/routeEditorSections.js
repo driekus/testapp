@@ -63,6 +63,8 @@ export function createRouteEditorSections({
   syncPaymentControls,
   centsToEuros,
 }) {
+  let loadRequestId = 0;
+
   // --- Route Tabs ---
 
   /**
@@ -539,22 +541,32 @@ export function createRouteEditorSections({
    * @param {string|null} slug
    */
   async function loadGameIntoEditor(slug) {
+    const requestId = ++loadRequestId;
+
     if (!slug) {
       state.currentSlug = null;
       state.currentGameId = null;
       state.currentRequiresPayment = false;
       state.currentPriceInCents = 0;
+      state.currentSupportsOffline = false;
+      state.currentFinalQuestion = '';
+      state.currentFinalAnswer = '';
       state.currentGameStyles = { ...DEFAULT_GAME_STYLES };
       state.routes = [];
       els.editorSection.classList.add('hidden');
       renderGameStyleEditor(DEFAULT_GAME_STYLES);
+      if (els.finalQuestion) els.finalQuestion.value = '';
+      if (els.finalAnswer) els.finalAnswer.value = '';
       updateAuthUi();
       return;
     }
 
     setGameStatus(ta('loadingGame'));
+    if (els.finalQuestion) els.finalQuestion.value = '';
+    if (els.finalAnswer) els.finalAnswer.value = '';
     try {
       const game = await fetchGameWithRoutes(slug);
+      if (requestId !== loadRequestId || state.currentSlug !== slug) return;
       if (!game) { setGameStatus(ta('gameNotFoundAdmin', { slug }), true); return; }
 
       state.currentSlug = slug;
@@ -566,6 +578,8 @@ export function createRouteEditorSections({
        state.currentRequiresPayment = Boolean(game.requires_payment);
        state.currentPriceInCents = Number(game.price_in_cents) || 0;
        state.currentSupportsOffline = Boolean(game.supports_offline);
+       state.currentFinalQuestion = String(game.final_question ?? '');
+       state.currentFinalAnswer = String(game.final_answer ?? '');
        const savedStyles = await fetchGameStyles(game.id);
        state.currentGameStyles = { ...DEFAULT_GAME_STYLES, ...(savedStyles ?? {}) };
 
@@ -573,6 +587,8 @@ export function createRouteEditorSections({
        els.requiresPayment.checked = state.currentRequiresPayment;
        els.priceEuros.value = centsToEuros(state.currentPriceInCents);
        els.supportsOffline.checked = state.currentSupportsOffline;
+       if (els.finalQuestion) els.finalQuestion.value = state.currentFinalQuestion;
+       if (els.finalAnswer) els.finalAnswer.value = state.currentFinalAnswer;
       syncPaymentControls();
       setLogoPreview(game.logo_url ?? '');
       renderGameStyleEditor(state.currentGameStyles);

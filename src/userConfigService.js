@@ -75,14 +75,14 @@ function withTimeout(promise, ms) {
 /**
  * List all published games ordered alphabetically by display name.
  * Returns an empty array when Supabase is not configured.
- * @returns {Promise<Array<{ slug: string, display_name: string, requires_payment: boolean, price_in_cents: number }>>}
+ * @returns {Promise<Array<{ slug: string, display_name: string, requires_payment: boolean, price_in_cents: number, supports_offline: boolean }>>}
  */
 export async function listGames() {
-  if (!runtimeSupabaseUrl || !runtimeSupabaseAnonKey) return [];
+   if (!runtimeSupabaseUrl || !runtimeSupabaseAnonKey) return [];
 
-  const res = await withTimeout(
-    fetch(
-      `${runtimeSupabaseUrl}/rest/v1/games?select=slug,display_name,requires_payment,price_in_cents&order=display_name.asc`,
+   const res = await withTimeout(
+     fetch(
+       `${runtimeSupabaseUrl}/rest/v1/games?select=slug,display_name,requires_payment,price_in_cents,supports_offline&order=display_name.asc`,
       {
         headers: {
           apikey: runtimeSupabaseAnonKey,
@@ -101,15 +101,15 @@ export async function listGames() {
  * Fetch a game with all its routes ordered by `order_index`. No sign-in required.
  * Returns `null` when the game does not exist.
  * @param {string} slug - Game slug to look up.
- * @returns {Promise<{ id: string, slug: string, display_name: string, logo_url: string, requires_payment: boolean, price_in_cents: number, routes: Array } | null>}
+ * @returns {Promise<{ id: string, slug: string, display_name: string, logo_url: string, requires_payment: boolean, price_in_cents: number, supports_offline: boolean, routes: Array } | null>}
  */
 export async function fetchGameWithRoutes(slug) {
-  if (!runtimeSupabase) return null;
+   if (!runtimeSupabase) return null;
 
-  const { data, error } = await withTimeout(
-    runtimeSupabase
-      .from('games')
-      .select('id, slug, display_name, logo_url, requires_payment, price_in_cents, routes(id, order_index, display_name, route)')
+   const { data, error } = await withTimeout(
+     runtimeSupabase
+       .from('games')
+       .select('id, slug, display_name, logo_url, requires_payment, price_in_cents, supports_offline, final_question, routes(id, order_index, display_name, route)')
       .eq('slug', slug)
       .maybeSingle(),
     FETCH_TIMEOUT_MS,
@@ -121,16 +121,35 @@ export async function fetchGameWithRoutes(slug) {
     .sort((a, b) => a.order_index - b.order_index)
     .map((r) => ({ ...r, route: sanitizeRoute(r.route) }));
 
-  return {
-    id: data.id,
-    slug: data.slug,
-    display_name: data.display_name,
-    logo_url: data.logo_url ?? '',
-    requires_payment: data.requires_payment ?? false,
-    price_in_cents: data.price_in_cents ?? 0,
-    routes,
-  };
-}
+  // Final answer is stored in a protected table so gameplay clients cannot read it.
+  let finalAnswer = '';
+  try {
+    const { data: answerRow } = await withTimeout(
+      runtimeSupabase
+        .from('game_final_answers')
+        .select('final_answer')
+        .eq('game_id', data.id)
+        .maybeSingle(),
+      FETCH_TIMEOUT_MS,
+    );
+    finalAnswer = String(answerRow?.final_answer ?? '');
+  } catch {
+    finalAnswer = '';
+  }
+
+   return {
+     id: data.id,
+     slug: data.slug,
+     display_name: data.display_name,
+     logo_url: data.logo_url ?? '',
+     requires_payment: data.requires_payment ?? false,
+     price_in_cents: data.price_in_cents ?? 0,
+     supports_offline: data.supports_offline ?? false,
+     final_question: String(data.final_question ?? ''),
+     final_answer: finalAnswer,
+     routes,
+   };
+ }
 
 /**
  * Fetch a game for the play client via Edge Function — only safe fields are returned.
@@ -188,9 +207,19 @@ export async function fetchRouteStart(routeId, paymentToken = null) {
  * @param {boolean} [requiresPayment=false]
  * @param {number} [priceInCents=0]
  * @param {boolean} [supportsOffline=false]
+ * @param {string} [finalQuestion='']
+ * @param {string} [finalAnswer='']
  * @returns {Promise<string>} the game's uuid
  */
-export async function saveGame(slug, displayName, requiresPayment = false, priceInCents = 0, supportsOffline = false) {
+export async function saveGame(
+  slug,
+  displayName,
+  requiresPayment = false,
+  priceInCents = 0,
+  supportsOffline = false,
+  finalQuestion = '',
+  finalAnswer = '',
+) {
   if (!runtimeSupabase) throw new Error('Supabase is not configured.');
 
   const { data, error } = await runtimeSupabase
@@ -202,6 +231,7 @@ export async function saveGame(slug, displayName, requiresPayment = false, price
         requires_payment: Boolean(requiresPayment),
         price_in_cents: Math.max(0, Math.round(Number(priceInCents) || 0)),
         supports_offline: Boolean(supportsOffline),
+        final_question: String(finalQuestion ?? '').trim(),
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'slug' },
@@ -210,6 +240,19 @@ export async function saveGame(slug, displayName, requiresPayment = false, price
     .single();
 
   if (error) throw error;
+
+  const { error: finalAnswerError } = await runtimeSupabase
+    .from('game_final_answers')
+    .upsert(
+      {
+        game_id: data.id,
+        final_answer: String(finalAnswer ?? '').trim(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'game_id' },
+    );
+
+  if (finalAnswerError) throw finalAnswerError;
   return data.id;
 }
 

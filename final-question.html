@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2f7dff" />
+    <title>Letter Quest - Final Question</title>
+  </head>
+  <body>
+    <script type="module" src="/src/mobileGuardEntry.js"></script>
+    <div id="mobile-guard" aria-hidden="true"></div>
+    <div id="app">
+      <main class="container">
+        <img id="game-logo" class="game-logo hidden" alt="" />
+        <h1 id="final-question-page-title"></h1>
+        <p id="final-question-page-subtitle" class="hint"></p>
+
+        <section class="card" id="final-question-card">
+          <h2 id="final-question-title"></h2>
+          <p id="final-question-prompt"></p>
+          <label class="visually-hidden" id="final-question-answer-label" for="final-question-answer">Answer</label>
+          <input id="final-question-answer" type="text" />
+          <p id="offline-final-question-notice" class="muted hidden"></p>
+          <p id="final-question-status" class="hidden"></p>
+          <div class="actions">
+            <button id="submit-final-question-btn" type="button"></button>
+            <button id="continue-to-feedback-btn" class="ghost" type="button" disabled></button>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/final-question.js"></script>
+  </body>
+</html>
+
+

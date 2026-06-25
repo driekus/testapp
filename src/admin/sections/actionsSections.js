@@ -207,10 +207,14 @@ export function createActionsSections({
        const requiresPayment = els.requiresPayment.checked;
        const priceInCents = requiresPayment ? eurosToCents(els.priceEuros.value) : 0;
        const supportsOffline = els.supportsOffline.checked;
-       await saveGame(state.currentSlug, name, requiresPayment, priceInCents, supportsOffline);
+       const finalQuestion = els.finalQuestion?.value.trim() ?? '';
+       const finalAnswer = els.finalAnswer?.value.trim() ?? '';
+       await saveGame(state.currentSlug, name, requiresPayment, priceInCents, supportsOffline, finalQuestion, finalAnswer);
        state.currentRequiresPayment = requiresPayment;
        state.currentPriceInCents = priceInCents;
        state.currentSupportsOffline = supportsOffline;
+       state.currentFinalQuestion = finalQuestion;
+       state.currentFinalAnswer = finalAnswer;
        const g = state.games.find((x) => x.slug === state.currentSlug);
        if (g) g.display_name = name;
        populateGameSelect();

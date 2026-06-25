@@ -34,6 +34,11 @@ import {
   normalizeRoute,
   shouldAutoResumeTracking as shouldAutoResumeTrackingFromState,
 } from './main/mainCore.js';
+import {
+  addOfflineBeforeUnloadGuard,
+  confirmOfflineNavigation,
+  runWithOfflineUnloadBypass,
+} from './offlineNavigationGuard.js';
 
 const LOCATION_RADIUS_METERS = 5;
 const MAX_ALLOWED_GPS_ACCURACY_METERS = 11;
@@ -65,6 +70,8 @@ const state = {
   supportsOffline: false,   // whether this game supports offline mode
   offlineMode: false,       // true when using cached game data
   offlineCacheExpiry: null, // timestamp when offline cache expires
+  finalQuestionPrompt: '',  // optional game-level final question shown after finishing
+  finalQuestionAnswer: '',  // available only in offline mode from cached full game
   // player identity
   winnerName: '',           // paid games: loaded from sessionStorage after winner.html
   winnerPhone: '',          // paid games: loaded from sessionStorage after winner.html
@@ -551,7 +558,19 @@ function completeCurrentLocation(letter = null) {
       const nextRoute = state.gameRoutes[state.currentRouteIndex + 1];
       state.statusMessage = tm('routeComplete', { name: nextRoute.display_name });
       saveSession();
-    } else {
+      } else {
+       const offlineNavigationMessage = tm('offlineNavigationConfirm');
+       const allowed = confirmOfflineNavigation({
+         navigatorRef: navigator,
+         confirmRef: window.confirm?.bind(window),
+         message: offlineNavigationMessage,
+       });
+       if (!allowed) {
+         state.statusMessage = tm('offlineNavigationCancelled');
+         updateUi();
+         return;
+       }
+
        clearSession();
        try {
          // Clear winner details from session so next play requires fresh winner.html form
@@ -573,10 +592,18 @@ function completeCurrentLocation(letter = null) {
            winnerName: state.requiresPayment ? state.winnerName : state.playerDisplayName,
            winnerPhone: state.requiresPayment ? state.winnerPhone : '',
            offlineMode: state.offlineMode,
+           finalQuestionPrompt: state.finalQuestionPrompt,
+           finalQuestionAnswer: state.offlineMode ? state.finalQuestionAnswer : '',
          };
          sessionStorage.setItem('letter-quest-feedback', JSON.stringify(feedbackData));
       } catch { /* ignore */ }
-      window.location.href = '/feedback.html';
+      runWithOfflineUnloadBypass({
+        windowRef: window,
+        navigate: () => {
+          const hasFinalQuestion = Boolean(state.finalQuestionPrompt && state.playerSessionId && state.gameId);
+          window.location.href = hasFinalQuestion ? '/final-question.html' : '/feedback.html';
+        },
+      });
       return;
     }
   } else {
@@ -715,6 +742,8 @@ async function loadGame() {
       state.requiresPayment = Boolean(game.requires_payment);
       state.priceInCents = Number(game.price_in_cents) || 0;
       state.supportsOffline = Boolean(game.supports_offline);
+      state.finalQuestionPrompt = String(game.final_question ?? '').trim();
+      state.finalQuestionAnswer = '';
       state.paymentReady = !state.requiresPayment;
       if (!state.requiresPayment) state.paymentToken = null;
 
@@ -783,6 +812,8 @@ async function loadGame() {
         state.offlineMode = true;
         state.offlineCacheExpiry = cachedData.expiresAt;
         const cachedGame = cachedData.game;
+        state.finalQuestionPrompt = String(cachedGame.final_question ?? '').trim();
+        state.finalQuestionAnswer = String(cachedGame.final_answer ?? '').trim();
         state.gameRoutes = cachedGame.routes.map((r) => ({
           id: r.id,
           order_index: r.order_index,
@@ -836,6 +867,10 @@ async function loadGame() {
           state.nameConfirmed = true;
           state.sessionRestored = true;
           state.offlineMode = Boolean(saved.offlineMode);
+          state.finalQuestionPrompt = String(saved.finalQuestionPrompt ?? state.finalQuestionPrompt ?? '').trim();
+          state.finalQuestionAnswer = state.offlineMode
+            ? String(saved.finalQuestionAnswer ?? state.finalQuestionAnswer ?? '').trim()
+            : '';
 
           shouldAutoResumeTracking = shouldAutoResumeTrackingFromState(state);
         } else {
@@ -857,6 +892,7 @@ async function loadGame() {
           state.questionStartedAt = 0;
           state.statusMessage = tm('tapToBegin');
           state.sessionRestored = false;
+          state.finalQuestionAnswer = '';
 
           // Persist a baseline session immediately so F5 can restore this run.
           saveSession();
@@ -907,16 +943,48 @@ if (!slug) {
 } else {
   const gameUi = document.querySelector('#game-ui');
   applyTranslations(gameUi);
+  const offlineNavigationMessage = tm('offlineNavigationConfirm');
+  addOfflineBeforeUnloadGuard({
+    windowRef: window,
+    navigatorRef: navigator,
+    message: offlineNavigationMessage,
+  });
   const backLink = document.querySelector('#back-link');
   backLink.textContent = `← ${tm('allGames')}`;
   backLink.addEventListener('click', (e) => {
     e.preventDefault();
-    window.location.replace(`/?refresh=${Date.now()}`);
+    const allowed = confirmOfflineNavigation({
+      navigatorRef: navigator,
+      confirmRef: window.confirm?.bind(window),
+      message: offlineNavigationMessage,
+    });
+    if (!allowed) return;
+    runWithOfflineUnloadBypass({
+      windowRef: window,
+      navigate: () => {
+        window.location.replace(`/?refresh=${Date.now()}`);
+      },
+    });
   });
   gameUi.classList.remove('hidden');
 
    els = getEls();
    setElements(els);
+   els.rankingsLink?.addEventListener('click', (e) => {
+     e.preventDefault();
+     const allowed = confirmOfflineNavigation({
+       navigatorRef: navigator,
+       confirmRef: window.confirm?.bind(window),
+       message: offlineNavigationMessage,
+     });
+     if (!allowed) return;
+     runWithOfflineUnloadBypass({
+       windowRef: window,
+       navigate: () => {
+         window.location.href = els.rankingsLink.href;
+       },
+     });
+   });
 
    els.enableLocation.addEventListener('click', startLocationTracking);
    els.payAndPlay.addEventListener('click', async () => {

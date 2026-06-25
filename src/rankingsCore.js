@@ -1,3 +1,9 @@
+import {
+  addOfflineBeforeUnloadGuard,
+  confirmOfflineNavigation,
+  runWithOfflineUnloadBypass,
+} from './offlineNavigationGuard.js';
+
 /**
  * Render one score row as a paragraph element.
  * @param {object} deps
@@ -52,6 +58,13 @@ export async function loadRankingsView({
   windowRef,
   createElement,
 }) {
+  const offlineNavigationMessage = tm('offlineNavigationConfirm');
+  addOfflineBeforeUnloadGuard({
+    windowRef,
+    navigatorRef: windowRef?.navigator,
+    message: offlineNavigationMessage,
+  });
+
   if (!slug) {
     els.title.textContent = tm('scoreboardTitle');
     els.myRankingsCard.classList.add('hidden');
@@ -60,10 +73,36 @@ export async function loadRankingsView({
 
   els.closeBtn.textContent = tm('closeRankings');
   els.closeBtn.onclick = () => {
-    windowRef.location.replace(`/?refresh=${Date.now()}`);
+    const allowed = confirmOfflineNavigation({
+      navigatorRef: windowRef?.navigator,
+      confirmRef: windowRef?.confirm?.bind(windowRef),
+      message: offlineNavigationMessage,
+    });
+    if (!allowed) return;
+    runWithOfflineUnloadBypass({
+      windowRef,
+      navigate: () => {
+        windowRef.location.replace(`/?refresh=${Date.now()}`);
+      },
+    });
   };
   els.refreshLink.textContent = tm('refreshRankings');
   els.refreshLink.href = buildRankingsUrl(slug);
+  els.refreshLink.onclick = (event) => {
+    event?.preventDefault?.();
+    const allowed = confirmOfflineNavigation({
+      navigatorRef: windowRef?.navigator,
+      confirmRef: windowRef?.confirm?.bind(windowRef),
+      message: offlineNavigationMessage,
+    });
+    if (!allowed) return;
+    runWithOfflineUnloadBypass({
+      windowRef,
+      navigate: () => {
+        windowRef.location.href = buildRankingsUrl(slug);
+      },
+    });
+  };
   els.title.textContent = tm('scoreboardTitle');
   els.scoreboardTitle.textContent = tm('scoreboardTitle');
   els.myRankingsTitle.textContent = tm('myRankingsTitle');

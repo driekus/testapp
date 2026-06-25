@@ -26,20 +26,27 @@ test('buildFeedbackContext normalizes defaults and trims winner fields', () => {
     score: '42',
     totalAnswerTimeMs: '1200',
     playerId: 'p1',
+    playerSessionId: 's1',
     winnerName: '  Alice ',
     winnerPhone: ' 06123 ',
+    finalQuestionPrompt: 'Final?',
+    finalQuestionAnswer: 'Answer',
   });
 
   assert.equal(ctx.gameId, 'g1');
   assert.equal(ctx.requiresPayment, true);
   assert.equal(ctx.finalScore, 42);
   assert.equal(ctx.totalAnswerTimeMs, 1200);
+  assert.equal(ctx.playerSessionId, 's1');
   assert.equal(ctx.winnerName, 'Alice');
   assert.equal(ctx.winnerPhone, '06123');
+  assert.equal(ctx.finalQuestionPrompt, 'Final?');
+  assert.equal(ctx.finalQuestionAnswer, 'Answer');
 
   const empty = buildFeedbackContext(null);
   assert.equal(empty.gameId, '');
   assert.equal(empty.finalScore, 0);
+  assert.equal(empty.finalQuestionPrompt, '');
 });
 
 test('buildScoreNameOperation returns correct modes and null cases', () => {

@@ -154,7 +154,7 @@ test('fetchGameForPlay throws on non-ok response', async () => {
 });
 
 test('fetchGameWithRoutes sorts routes and sanitizes route points', async () => {
-  const calls = {};
+  const calls = [];
   const gameResult = {
     data: {
       id: 'g1',
@@ -173,17 +173,24 @@ test('fetchGameWithRoutes sorts routes and sanitizes route points', async () => 
 
   const fakeSupabase = {
     from(table) {
-      calls.table = table;
-      return createFromBuilder(gameResult, calls);
+      const call = { table };
+      calls.push(call);
+      if (table === 'games') return createFromBuilder(gameResult, call);
+      if (table === 'game_final_answers') {
+        return createFromBuilder({ data: { final_answer: 'SECRET' }, error: null }, call);
+      }
+      return createFromBuilder({ data: null, error: null }, call);
     },
   };
 
   setUserConfigServiceRuntimeDeps({ supabase: fakeSupabase });
 
   const game = await fetchGameWithRoutes('demo');
-  assert.equal(calls.table, 'games');
+  assert.equal(calls[0].table, 'games');
+  assert.equal(calls[1].table, 'game_final_answers');
   assert.equal(game.routes[0].id, 'r1');
   assert.equal(game.routes[0].route[0].letter.length, 1);
+  assert.equal(game.final_answer, 'SECRET');
 });
 
 test('save/update/delete game and route operations send expected query-builder calls', async () => {
@@ -193,10 +200,11 @@ test('save/update/delete game and route operations send expected query-builder c
       const calls = { table };
       callLog.push(calls);
 
-      if (table === 'games' && callLog.length === 1) {
+      if (table === 'games' && !calls._used) {
+        calls._used = true;
         return createFromBuilder({ data: { id: 'g1' }, error: null }, calls);
       }
-      if (table === 'routes' && callLog.length === 4) {
+      if (table === 'routes') {
         return createFromBuilder({ data: { id: 'r1', order_index: 1, display_name: 'Route', route: [{ letter: 'a' }] }, error: null }, calls);
       }
       return createFromBuilder({ error: null }, calls);
@@ -216,10 +224,19 @@ test('save/update/delete game and route operations send expected query-builder c
   assert.equal(gameId, 'g1');
   assert.equal(route.id, 'r1');
   assert.equal(callLog[0].upsert.payload.price_in_cents, 300);
-  assert.equal(callLog[1].update.logo_url, 'https://logo');
-  assert.equal(callLog[2].delete, true);
-  assert.equal(callLog[4].update.display_name, 'Route 1');
-  assert.equal(callLog[5].delete, true);
+  const gamesUpsert = callLog.find((c) => c.table === 'games' && c.upsert);
+  const finalAnswerUpsert = callLog.find((c) => c.table === 'game_final_answers' && c.upsert);
+  const gamesLogoUpdate = callLog.find((c) => c.table === 'games' && c.update?.logo_url === 'https://logo');
+  const gamesDelete = callLog.find((c) => c.table === 'games' && c.delete);
+  const routeUpdate = callLog.find((c) => c.table === 'routes' && c.update?.display_name === 'Route 1');
+  const routeDelete = callLog.find((c) => c.table === 'routes' && c.delete);
+
+  assert.equal(Boolean(gamesUpsert), true);
+  assert.equal(Boolean(finalAnswerUpsert), true);
+  assert.equal(Boolean(gamesLogoUpdate), true);
+  assert.equal(Boolean(gamesDelete), true);
+  assert.equal(Boolean(routeUpdate), true);
+  assert.equal(Boolean(routeDelete), true);
 });
 
 test('deleteGameBySlug re-export works', async () => {

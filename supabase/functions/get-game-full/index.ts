@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     // Fetch game metadata
     const { data: game, error: gameError } = await supabase
       .from('games')
-      .select('id, slug, display_name, logo_url, requires_payment, price_in_cents, supports_offline, routes(id, order_index, display_name, route)')
+      .select('id, slug, display_name, logo_url, requires_payment, price_in_cents, supports_offline, final_question, routes(id, order_index, display_name, route)')
       .eq('slug', slug)
       .maybeSingle();
 
@@ -97,6 +97,12 @@ Deno.serve(async (req) => {
       })),
     }));
 
+    const { data: finalAnswerRow } = await supabase
+      .from('game_final_answers')
+      .select('final_answer')
+      .eq('game_id', game.id)
+      .maybeSingle();
+
     return Response.json(
       {
         game: {
@@ -107,6 +113,8 @@ Deno.serve(async (req) => {
           requires_payment: game.requires_payment ?? false,
           price_in_cents: game.price_in_cents ?? 0,
           supports_offline: game.supports_offline ?? false,
+          final_question: game.final_question ?? '',
+          final_answer: finalAnswerRow?.final_answer ?? '',
           routes: fullRoutes,
         },
       },

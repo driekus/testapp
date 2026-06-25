@@ -23,15 +23,15 @@ export function buildFeedbackPageCopy(tm, data, finalScore, totalAnswerTimeMs) {
 }
 
 /**
- * Determine whether navigating to rankings should be blocked for offline runs.
- * Rankings depend on live network data, so offline-mode sessions should stay on
- * the feedback page until connectivity returns.
- * @param {boolean} offlineMode
+ * Determine whether navigating to rankings should be blocked while offline.
+ * Rankings depend on live network data, so navigation should confirm first when
+ * there is no connectivity.
+ * @param {boolean} _offlineMode
  * @param {{ onLine?: boolean } | undefined | null} navigatorRef
  * @returns {boolean}
  */
-export function shouldBlockRankingsNavigation(offlineMode, navigatorRef) {
-  return Boolean(offlineMode) && navigatorRef?.onLine === false;
+export function shouldBlockRankingsNavigation(_offlineMode, navigatorRef) {
+  return navigatorRef?.onLine === false;
 }
 
 /**
