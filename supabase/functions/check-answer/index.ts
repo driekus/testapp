@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireAuthorizedScoreSession } from './scoreSession.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -45,22 +46,100 @@ async function verifyPaymentIfRequired(supabase: any, routeId: string, paymentTo
   return null;
 }
 
+async function readWrongAttempts(
+  supabase: any,
+  gameId: string,
+  playerSessionId: string,
+  routeId: string,
+  locationIndex: number,
+) {
+  const { data, error } = await supabase
+    .from('answer_attempts')
+    .select('id, wrong_attempts')
+    .eq('game_id', gameId)
+    .eq('player_session_id', playerSessionId)
+    .eq('route_id', routeId)
+    .eq('location_index', locationIndex)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+async function bumpWrongAttempts(
+  supabase: any,
+  gameId: string,
+  playerSessionId: string,
+  routeId: string,
+  locationIndex: number,
+) {
+  const existing = await readWrongAttempts(supabase, gameId, playerSessionId, routeId, locationIndex);
+  if (!existing) {
+    const { data, error } = await supabase
+      .from('answer_attempts')
+      .insert({
+        game_id: gameId,
+        player_session_id: playerSessionId,
+        route_id: routeId,
+        location_index: locationIndex,
+        wrong_attempts: 1,
+        updated_at: new Date().toISOString(),
+      })
+      .select('wrong_attempts')
+      .single();
+    if (error) throw error;
+    return Number(data?.wrong_attempts || 1);
+  }
+
+  const nextWrongAttempts = Math.max(0, Number(existing.wrong_attempts || 0)) + 1;
+  const { data, error } = await supabase
+    .from('answer_attempts')
+    .update({ wrong_attempts: nextWrongAttempts, updated_at: new Date().toISOString() })
+    .eq('id', existing.id)
+    .select('wrong_attempts')
+    .single();
+  if (error) throw error;
+  return Number(data?.wrong_attempts || nextWrongAttempts);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS });
   }
 
   try {
-    const { route_id, location_index, answer, payment_token } = await req.json();
+    const { route_id, location_index, answer, payment_token, player_session_id, session_token } = await req.json();
 
-    if (!route_id || location_index == null || answer == null) {
-      return Response.json({ error: 'Missing route_id, location_index or answer' }, { status: 400, headers: CORS });
+    if (!route_id || location_index == null || answer == null || !player_session_id || !session_token) {
+      return Response.json({ error: 'Missing route_id, location_index, answer, player_session_id or session_token' }, { status: 400, headers: CORS });
     }
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SERVICE_ROLE_KEY')!,
     );
+
+    const { data: routeMeta, error: routeMetaError } = await supabase
+      .from('routes')
+      .select('game_id')
+      .eq('id', route_id)
+      .maybeSingle();
+
+    if (routeMetaError) {
+      return Response.json({ error: routeMetaError.message }, { status: 500, headers: CORS });
+    }
+    if (!routeMeta?.game_id) {
+      return Response.json({ error: 'Route not found' }, { status: 404, headers: CORS });
+    }
+
+    const sessionAuth = await requireAuthorizedScoreSession({
+      gameId: String(routeMeta.game_id),
+      playerSessionId: String(player_session_id),
+      sessionToken: String(session_token),
+    });
+    if (!sessionAuth.ok) {
+      return Response.json({ error: sessionAuth.error }, { status: sessionAuth.status, headers: CORS });
+    }
 
     const paymentValidation = await verifyPaymentIfRequired(supabase, route_id, payment_token);
     if (paymentValidation) {
@@ -84,10 +163,52 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Location index out of bounds' }, { status: 400, headers: CORS });
     }
 
+    const maxAttempts = Math.max(0, Number(location.max_attempts || 0));
+    if (maxAttempts > 0) {
+      const existingAttempts = await readWrongAttempts(
+        supabase,
+        String(routeMeta.game_id),
+        String(player_session_id),
+        String(route_id),
+        Number(location_index),
+      );
+      const usedAttempts = Math.max(0, Number(existingAttempts?.wrong_attempts || 0));
+      if (usedAttempts >= maxAttempts) {
+        return Response.json(
+          {
+            correct: false,
+            max_attempts_reached: true,
+            attempts_used: usedAttempts,
+            max_attempts: maxAttempts,
+          },
+          { headers: CORS },
+        );
+      }
+    }
+
     const correct =
       String(answer).trim().toLowerCase() === String(location.answer ?? '').trim().toLowerCase();
 
     if (!correct) {
+      if (maxAttempts > 0) {
+        const attemptsUsed = await bumpWrongAttempts(
+          supabase,
+          String(routeMeta.game_id),
+          String(player_session_id),
+          String(route_id),
+          Number(location_index),
+        );
+        return Response.json(
+          {
+            correct: false,
+            max_attempts_reached: attemptsUsed >= maxAttempts,
+            attempts_used: attemptsUsed,
+            max_attempts: maxAttempts,
+          },
+          { headers: CORS },
+        );
+      }
+
       return Response.json({ correct: false }, { headers: CORS });
     }
 

@@ -44,7 +44,20 @@ Deno.serve(async (req) => {
     // Read raw body first so we can verify signature before parsing
     const rawBody = await req.text();
 
-    const isMock = Deno.env.get('TIKKIE_MOCK') !== 'false';
+    const tikkieMock = String(Deno.env.get('TIKKIE_MOCK') ?? '').toLowerCase();
+    const runtimeEnv = String(
+      Deno.env.get('ENV')
+      ?? Deno.env.get('DENO_ENV')
+      ?? Deno.env.get('NODE_ENV')
+      ?? Deno.env.get('VERCEL_ENV')
+      ?? '',
+    ).toLowerCase();
+    const isProductionEnv = runtimeEnv === 'production' || runtimeEnv === 'prod';
+    const isMock = tikkieMock === 'true' && !isProductionEnv;
+
+    if (tikkieMock === 'true' && isProductionEnv) {
+      return Response.json({ error: 'Mock payment is not allowed in production' }, { status: 400, headers: CORS });
+    }
 
     if (!isMock) {
       // ── Production: verify HMAC-SHA256 signature from Tikkie ────────────────

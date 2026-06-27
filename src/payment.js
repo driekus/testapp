@@ -16,6 +16,7 @@ const euro = new Intl.NumberFormat('nl-NL', {
  * @returns {string} Namespaced localStorage key.
  */
 export const PAYMENT_KEY = (slug) => `letter-quest-payment-${slug}`;
+export const PAYMENT_REQUEST_KEY = (slug) => `letter-quest-payment-request-${slug}`;
 
 /**
  * Format an amount in cents as a localized Euro string.
@@ -68,6 +69,47 @@ export function clearStoredPaymentToken(slug) {
 }
 
 /**
+ * Retrieve a stored payment request token for a game from localStorage.
+ * @param {string} slug - Game slug.
+ * @returns {string | null}
+ */
+export function getStoredPaymentRequestToken(slug) {
+  if (!slug) return null;
+  try {
+    return localStorage.getItem(PAYMENT_REQUEST_KEY(slug));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Persist a payment request token for a game in localStorage.
+ * @param {string} slug - Game slug.
+ * @param {string} token - Payment request token to store.
+ */
+export function storePaymentRequestToken(slug, token) {
+  if (!slug || !token) return;
+  try {
+    localStorage.setItem(PAYMENT_REQUEST_KEY(slug), token);
+  } catch {
+    // Ignore unavailable storage in private mode.
+  }
+}
+
+/**
+ * Remove a stored payment request token for a game from localStorage.
+ * @param {string} slug - Game slug.
+ */
+export function clearStoredPaymentRequestToken(slug) {
+  if (!slug) return;
+  try {
+    localStorage.removeItem(PAYMENT_REQUEST_KEY(slug));
+  } catch {
+    // Ignore unavailable storage in private mode.
+  }
+}
+
+/**
  * POST to a Supabase Edge Function and return the parsed JSON body.
  * Throws when the response is not OK.
  * @param {string} name - Edge Function name.
@@ -106,6 +148,9 @@ export async function verifyPaymentToken(slug, token) {
  */
 export async function startPayment(slug) {
   const json = await callFunction('create-payment', { game_slug: slug });
+  if (json?.paymentRequestToken) {
+    storePaymentRequestToken(slug, String(json.paymentRequestToken));
+  }
   if (!json?.url) throw new Error('No payment URL returned');
   window.location.href = json.url;
 }

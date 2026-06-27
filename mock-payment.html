@@ -74,6 +74,11 @@
       const status = document.querySelector('#status')
       const payNow = document.querySelector('#pay-now')
 
+      if (!import.meta.env.DEV) {
+        status.textContent = 'Mock payment is only available in development.'
+        payNow.disabled = true
+      }
+
       const readableSlug = slug
         .split('-')
         .filter(Boolean)
@@ -89,6 +94,7 @@
       }
 
       payNow.addEventListener('click', async () => {
+        if (!import.meta.env.DEV) return
         payNow.disabled = true
         status.textContent = 'Confirming payment...'
 
@@ -104,7 +110,7 @@
           const json = await res.json()
           if (!res.ok) throw new Error(json.error ?? res.statusText)
 
-          window.location.href = `/${encodeURIComponent(slug)}?payment_request_token=${encodeURIComponent(paymentRequestToken)}`
+          window.location.href = `/${encodeURIComponent(slug)}`
         } catch (err) {
           payNow.disabled = false
           status.textContent = String(err)

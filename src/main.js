@@ -14,8 +14,10 @@ import {
   recordScoreEvent,
 } from './scoreService.js';
 import {
+  clearStoredPaymentRequestToken,
   clearStoredPaymentToken,
   formatEuro,
+  getStoredPaymentRequestToken,
   getStoredPaymentToken,
   pollUntilPaid,
   startPayment,
@@ -503,6 +505,8 @@ async function submitAnswer() {
           location_index: state.currentLocationIndex,
           answer: given,
           payment_token: state.requiresPayment ? state.paymentToken : null,
+          player_session_id: state.playerSessionId,
+          session_token: state.scoreSessionToken,
         }),
       });
       const json = await res.json();
@@ -523,7 +527,11 @@ async function submitAnswer() {
         });
         saveSession();
       } else {
-        state.answerAttempts += 1;
+        if (Number.isFinite(Number(json.attempts_used))) {
+          state.answerAttempts = Number(json.attempts_used);
+        } else {
+          state.answerAttempts += 1;
+        }
         state.answerWrong = true;
       }
     }
@@ -791,6 +799,8 @@ async function loadGame() {
           paymentApi: {
             getStoredPaymentToken,
             clearStoredPaymentToken,
+            getStoredPaymentRequestToken,
+            clearStoredPaymentRequestToken,
             verifyPaymentToken,
             pollUntilPaid,
             storePaymentToken,

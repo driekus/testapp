@@ -3,13 +3,17 @@ import assert from 'node:assert/strict';
 
 import {
   PAYMENT_KEY,
+  PAYMENT_REQUEST_KEY,
+  clearStoredPaymentRequestToken,
   clearStoredPaymentToken,
   formatEuro,
+  getStoredPaymentRequestToken,
   getStoredPaymentToken,
   markPlayed,
   pollUntilPaid,
   startPayment,
   storePaymentToken,
+  storePaymentRequestToken,
   verifyPaymentToken,
 } from '../src/payment.js';
 
@@ -30,6 +34,7 @@ function createStorage(seed = {}) {
 
 test('PAYMENT_KEY and formatEuro return expected formats', () => {
   assert.equal(PAYMENT_KEY('demo'), 'letter-quest-payment-demo');
+  assert.equal(PAYMENT_REQUEST_KEY('demo'), 'letter-quest-payment-request-demo');
   assert.equal(typeof formatEuro(250), 'string');
   assert.match(formatEuro(250), /2,50|2\.50/);
 });
@@ -72,8 +77,27 @@ test('storage helpers swallow storage exceptions', () => {
 
   try {
     assert.equal(getStoredPaymentToken('demo'), null);
+    assert.equal(getStoredPaymentRequestToken('demo'), null);
     assert.doesNotThrow(() => storePaymentToken('demo', 'x'));
+    assert.doesNotThrow(() => storePaymentRequestToken('demo', 'x'));
     assert.doesNotThrow(() => clearStoredPaymentToken('demo'));
+    assert.doesNotThrow(() => clearStoredPaymentRequestToken('demo'));
+  } finally {
+    globalThis.localStorage = originalStorage;
+  }
+});
+
+test('get/store/clear payment request token use localStorage safely', () => {
+  const originalStorage = globalThis.localStorage;
+  const storage = createStorage();
+  globalThis.localStorage = storage;
+
+  try {
+    assert.equal(getStoredPaymentRequestToken('demo'), null);
+    storePaymentRequestToken('demo', 'request-1');
+    assert.equal(getStoredPaymentRequestToken('demo'), 'request-1');
+    clearStoredPaymentRequestToken('demo');
+    assert.equal(getStoredPaymentRequestToken('demo'), null);
   } finally {
     globalThis.localStorage = originalStorage;
   }
@@ -110,20 +134,24 @@ test('verifyPaymentToken calls check-payment function', async () => {
 test('startPayment redirects when url is returned', async () => {
   const originalFetch = globalThis.fetch;
   const originalWindow = globalThis.window;
+  const originalStorage = globalThis.localStorage;
+  globalThis.localStorage = createStorage();
   globalThis.window = { location: { href: '' } };
   globalThis.fetch = async () => ({
     ok: true,
     async json() {
-      return { url: 'https://example.com/pay' };
+      return { url: 'https://example.com/pay', paymentRequestToken: 'req-token' };
     },
   });
 
   try {
     await startPayment('demo');
     assert.equal(globalThis.window.location.href, 'https://example.com/pay');
+    assert.equal(getStoredPaymentRequestToken('demo'), 'req-token');
   } finally {
     globalThis.fetch = originalFetch;
     globalThis.window = originalWindow;
+    globalThis.localStorage = originalStorage;
   }
 });
 

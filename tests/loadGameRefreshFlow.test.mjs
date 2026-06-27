@@ -154,7 +154,11 @@ test('refresh flow: valid stored token never shows pay card before access is gra
       getStoredPaymentToken() {
         return 'stored-token';
       },
+      getStoredPaymentRequestToken() {
+        return null;
+      },
       clearStoredPaymentToken() {},
+      clearStoredPaymentRequestToken() {},
       verifyPaymentToken() {
         return verifyPromise;
       },
@@ -207,7 +211,11 @@ test('refresh flow: invalid stored token shows pay card only after verification 
       getStoredPaymentToken() {
         return 'stored-token';
       },
+      getStoredPaymentRequestToken() {
+        return null;
+      },
       clearStoredPaymentToken() {},
+      clearStoredPaymentRequestToken() {},
       verifyPaymentToken() {
         return verifyPromise;
       },

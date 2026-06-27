@@ -9,7 +9,7 @@
  * @param {Window} deps.windowRef - Browser window reference.
  * @param {() => void} deps.updateUi - UI refresh callback.
  * @param {(messageKey: string, buttonKey?: string, hideButton?: boolean) => void} deps.showPaymentCard - Renders the payment card with translated copy.
- * @param {{ getStoredPaymentToken: (slug: string) => string | null, clearStoredPaymentToken: (slug: string) => void, verifyPaymentToken: (slug: string, token: string) => Promise<{ paid: boolean, payment_token: string | null, played: boolean }>, pollUntilPaid: (slug: string, requestToken: string, onPaid: (token: string) => void) => Promise<{ payment_token: string }>, storePaymentToken: (slug: string, token: string) => void }} deps.paymentApi - Payment helper functions.
+ * @param {{ getStoredPaymentToken: (slug: string) => string | null, clearStoredPaymentToken: (slug: string) => void, getStoredPaymentRequestToken: (slug: string) => string | null, clearStoredPaymentRequestToken: (slug: string) => void, verifyPaymentToken: (slug: string, token: string) => Promise<{ paid: boolean, payment_token: string | null, played: boolean }>, pollUntilPaid: (slug: string, requestToken: string, onPaid: (token: string) => void) => Promise<{ payment_token: string }>, storePaymentToken: (slug: string, token: string) => void }} deps.paymentApi - Payment helper functions.
  * @returns {Promise<boolean>} `true` when access is granted, `false` otherwise.
  */
 export async function resolvePaymentAccess({
@@ -21,8 +21,7 @@ export async function resolvePaymentAccess({
   paymentApi,
 }) {
   state.paymentReady = false;
-  const params = new URLSearchParams(windowRef.location.search);
-  const paymentRequestToken = params.get('payment_request_token');
+  const paymentRequestToken = paymentApi.getStoredPaymentRequestToken(slug);
   const storedToken = paymentApi.getStoredPaymentToken(slug);
   let alreadyPlayed = false;
 
@@ -30,6 +29,7 @@ export async function resolvePaymentAccess({
     try {
       const payment = await paymentApi.verifyPaymentToken(slug, storedToken);
       if (payment.paid && payment.payment_token && !payment.played) {
+        paymentApi.clearStoredPaymentRequestToken(slug);
         state.paymentToken = payment.payment_token;
         state.paymentReady = true;
         updateUi();
@@ -49,12 +49,13 @@ export async function resolvePaymentAccess({
       const payment = await paymentApi.pollUntilPaid(slug, paymentRequestToken, (token) => {
         paymentApi.storePaymentToken(slug, token);
       });
+      paymentApi.clearStoredPaymentRequestToken(slug);
       state.paymentToken = payment.payment_token;
       state.paymentReady = true;
       updateUi();
-      windowRef.history.replaceState({}, '', `/${slug}`);
       return true;
     } catch {
+      paymentApi.clearStoredPaymentRequestToken(slug);
       showPaymentCard('payToPlay');
       return false;
     }

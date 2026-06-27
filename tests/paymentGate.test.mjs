@@ -22,6 +22,10 @@ function basePaymentApi() {
       return null;
     },
     clearStoredPaymentToken() {},
+    getStoredPaymentRequestToken() {
+      return null;
+    },
+    clearStoredPaymentRequestToken() {},
     async verifyPaymentToken() {
       return {};
     },
@@ -105,10 +109,13 @@ test('starts payment polling flow and stores token from callback', async () => {
   const stored = [];
   const cards = [];
   let updateCount = 0;
-  const win = createWindowRef('?payment_request_token=req-123');
+  const win = createWindowRef('');
 
   const paymentApi = {
     ...basePaymentApi(),
+    getStoredPaymentRequestToken() {
+      return 'req-123';
+    },
     async pollUntilPaid(slug, requestToken, onPaid) {
       assert.equal(slug, 'slug');
       assert.equal(requestToken, 'req-123');
@@ -139,7 +146,7 @@ test('starts payment polling flow and stores token from callback', async () => {
   assert.equal(updateCount, 1);
   assert.deepEqual(stored, [{ slug: 'slug', token: 'cached-token' }]);
   assert.equal(cards[0][0], 'paymentPending');
-  assert.equal(win.replaceCalls.length, 1);
+  assert.equal(win.replaceCalls.length, 0);
 });
 
 test('shows pay card when polling fails', async () => {
@@ -148,6 +155,9 @@ test('shows pay card when polling fails', async () => {
 
   const paymentApi = {
     ...basePaymentApi(),
+    getStoredPaymentRequestToken() {
+      return 'req-123';
+    },
     async pollUntilPaid() {
       throw new Error('timeout');
     },
@@ -156,7 +166,7 @@ test('shows pay card when polling fails', async () => {
   const allowed = await resolvePaymentAccess({
     state,
     slug: 'slug',
-    windowRef: createWindowRef('?payment_request_token=req-123'),
+    windowRef: createWindowRef(''),
     updateUi() {},
     showPaymentCard(...args) {
       cards.push(args);
