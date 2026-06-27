@@ -41,8 +41,7 @@ test('PAYMENT_KEY and formatEuro return expected formats', () => {
 
 test('get/store/clear payment token use localStorage safely', () => {
   const originalStorage = globalThis.localStorage;
-  const storage = createStorage();
-  globalThis.localStorage = storage;
+  globalThis.localStorage = createStorage();
 
   try {
     assert.equal(getStoredPaymentToken('demo'), null);
@@ -89,8 +88,7 @@ test('storage helpers swallow storage exceptions', () => {
 
 test('get/store/clear payment request token use localStorage safely', () => {
   const originalStorage = globalThis.localStorage;
-  const storage = createStorage();
-  globalThis.localStorage = storage;
+  globalThis.localStorage = createStorage();
 
   try {
     assert.equal(getStoredPaymentRequestToken('demo'), null);

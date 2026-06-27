@@ -108,7 +108,11 @@
             body: JSON.stringify({ paymentRequestToken }),
           })
           const json = await res.json()
-          if (!res.ok) throw new Error(json.error ?? res.statusText)
+          if (!res.ok) {
+            payNow.disabled = false
+            status.textContent = String(json.error ?? res.statusText)
+            return
+          }
 
           window.location.href = `/${encodeURIComponent(slug)}`
         } catch (err) {

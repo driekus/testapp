@@ -27,7 +27,9 @@ Deno.serve(async (req) => {
       .eq('slug', game_slug)
       .maybeSingle();
 
-    if (gameError) throw gameError;
+    if (gameError) {
+      return Response.json({ error: gameError.message }, { status: 500, headers: CORS });
+    }
     if (!game) return Response.json({ error: 'Game not found' }, { status: 404, headers: CORS });
     if (!game.requires_payment) {
       return Response.json({ error: 'Game does not require payment' }, { status: 400, headers: CORS });
@@ -73,7 +75,7 @@ Deno.serve(async (req) => {
       });
       if (!tikkieRes.ok) {
         const errText = await tikkieRes.text();
-        throw new Error(`Tikkie API error: ${errText}`);
+        return Response.json({ error: `Tikkie API error: ${errText}` }, { status: 502, headers: CORS });
       }
       const tikkieData = await tikkieRes.json();
       paymentRequestToken = tikkieData.paymentRequestToken;
@@ -84,7 +86,9 @@ Deno.serve(async (req) => {
       .from('payment_sessions')
       .insert({ game_slug, payment_request_token: paymentRequestToken, amount_in_cents: amountInCents });
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      return Response.json({ error: insertError.message }, { status: 500, headers: CORS });
+    }
 
     return Response.json({ paymentRequestToken, url: paymentUrl }, { headers: CORS });
   } catch (err) {

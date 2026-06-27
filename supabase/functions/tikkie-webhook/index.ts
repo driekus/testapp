@@ -98,7 +98,9 @@ Deno.serve(async (req) => {
       .eq('payment_request_token', paymentRequestToken)
       .maybeSingle();
 
-    if (fetchError) throw fetchError;
+    if (fetchError) {
+      return Response.json({ error: fetchError.message }, { status: 500, headers: CORS });
+    }
     if (!session) {
       return Response.json({ error: 'Payment session not found' }, { status: 404, headers: CORS });
     }
@@ -120,7 +122,9 @@ Deno.serve(async (req) => {
       .eq('payment_request_token', paymentRequestToken)
       .eq('paid', false); // prevent double-update race
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      return Response.json({ error: updateError.message }, { status: 500, headers: CORS });
+    }
 
     return Response.json({ ok: true, payment_token: paymentToken }, { headers: CORS });
   } catch (err) {

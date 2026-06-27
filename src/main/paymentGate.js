@@ -6,7 +6,6 @@
  * @param {object} deps
  * @param {object} deps.state - Shared mutable game state.
  * @param {string} deps.slug - Current game slug.
- * @param {Window} deps.windowRef - Browser window reference.
  * @param {() => void} deps.updateUi - UI refresh callback.
  * @param {(messageKey: string, buttonKey?: string, hideButton?: boolean) => void} deps.showPaymentCard - Renders the payment card with translated copy.
  * @param {{ getStoredPaymentToken: (slug: string) => string | null, clearStoredPaymentToken: (slug: string) => void, getStoredPaymentRequestToken: (slug: string) => string | null, clearStoredPaymentRequestToken: (slug: string) => void, verifyPaymentToken: (slug: string, token: string) => Promise<{ paid: boolean, payment_token: string | null, played: boolean }>, pollUntilPaid: (slug: string, requestToken: string, onPaid: (token: string) => void) => Promise<{ payment_token: string }>, storePaymentToken: (slug: string, token: string) => void }} deps.paymentApi - Payment helper functions.
@@ -15,7 +14,6 @@
 export async function resolvePaymentAccess({
   state,
   slug,
-  windowRef,
   updateUi,
   showPaymentCard,
   paymentApi,
