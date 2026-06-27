@@ -14,6 +14,16 @@ function sortRows(a: any, b: any) {
   return String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''));
 }
 
+function toPublicRow(row: any, rank: number, playerId: string) {
+  return {
+    rank,
+    display_name: row.display_name,
+    score: Number(row.score || 0),
+    total_answer_time_ms: Number(row.total_answer_time_ms || 0),
+    is_me: Boolean(playerId) && row.player_id === playerId,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS });
@@ -38,24 +48,21 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
 
-    const ranked = (data ?? [])
-      .slice()
-      .sort(sortRows)
-      .map((row, index) => ({
-        rank: index + 1,
-        player_id: row.player_id,
-        player_session_id: row.player_session_id,
-        display_name: row.display_name,
-        score: Number(row.score || 0),
-        total_answer_time_ms: Number(row.total_answer_time_ms || 0),
-      }));
+    const ranked = (data ?? []).slice().sort(sortRows);
 
-    const top = ranked.slice(0, 3);
+    const top = ranked.slice(0, 3).map((row, index) => toPublicRow(row, index + 1, String(player_id ?? '')));
     const me = player_session_id
-      ? ranked.find((row) => row.player_session_id === player_session_id) ?? null
+      ? (() => {
+          const index = ranked.findIndex((row) => row.player_session_id === player_session_id);
+          return index === -1 ? null : toPublicRow(ranked[index], index + 1, String(player_id ?? ''));
+        })()
       : null;
     const mine = player_id
-      ? ranked.filter((row) => row.player_id === player_id).slice(0, 3)
+      ? ranked
+          .map((row, index) => ({ row, rank: index + 1 }))
+          .filter(({ row }) => row.player_id === player_id)
+          .slice(0, 3)
+          .map(({ row, rank }) => toPublicRow(row, rank, String(player_id ?? '')))
       : [];
 
     return Response.json({ top, me, mine }, { headers: CORS });

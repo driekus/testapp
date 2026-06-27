@@ -5,7 +5,6 @@ import { loadGameStyles } from './gameStyleService.js';
 import { markPlayed } from './payment.js';
 import {
   buildRankingsUrl,
-  setScoreDisplayName,
   setScoreDisplayNameBySession,
 } from './scoreService.js';
 import { buildFeedbackContext, buildScoreNameOperation, parseFeedbackSession } from './feedbackCore.js';
@@ -36,7 +35,8 @@ const {
   paymentToken,
   finalScore,
   totalAnswerTimeMs,
-  playerId,
+  playerSessionId,
+  scoreSessionToken,
   winnerName,
   winnerPhone,
   offlineMode,
@@ -140,18 +140,15 @@ async function doSetScoreDisplayName() {
   // For free games: use player_id (one name per player per game)
   const name = winnerName;
   const op = buildScoreNameOperation({
-    requiresPayment,
     name,
     gameId,
-    playerId,
     playerSessionId,
-    paymentToken,
+    sessionToken: scoreSessionToken,
   });
   if (!op) return;
 
   try {
-    if (op.mode === 'session') await setScoreDisplayNameBySession(op.payload);
-    else await setScoreDisplayName(op.payload);
+    await setScoreDisplayNameBySession(op.payload);
   } catch (err) {
     console.warn('feedback: could not set display name', err);
   }

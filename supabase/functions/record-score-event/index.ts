@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireAuthorizedScoreSession } from './scoreSession.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -184,6 +185,7 @@ Deno.serve(async (req) => {
       game_id,
       player_id,
       player_session_id,
+      session_token,
       event_type,
       event_key,
       attempt_number,
@@ -191,9 +193,9 @@ Deno.serve(async (req) => {
       display_name,
     } = await req.json();
 
-    if (!game_id || !player_id || !player_session_id || !event_type || !event_key) {
+    if (!game_id || !player_id || !player_session_id || !session_token || !event_type || !event_key) {
       return Response.json(
-        { error: 'Missing game_id, player_id, player_session_id, event_type, or event_key' },
+        { error: 'Missing game_id, player_id, player_session_id, session_token, event_type, or event_key' },
         { status: 400, headers: CORS },
       );
     }
@@ -233,6 +235,16 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SERVICE_ROLE_KEY')!,
     );
+
+    const sessionAuth = await requireAuthorizedScoreSession({
+      gameId: game_id,
+      playerId: player_id,
+      playerSessionId: player_session_id,
+      sessionToken: session_token,
+    });
+    if (!sessionAuth.ok) {
+      return Response.json({ error: sessionAuth.error }, { status: sessionAuth.status, headers: CORS });
+    }
 
     if (LOCATION_EVENT_TYPES.has(event_type)) {
       const parsed = parseLocationEventKey(normalizedEventKey, event_type);

@@ -95,12 +95,13 @@ drop policy if exists "Anyone can read routes"                   on public.route
 drop policy if exists "Authenticated users can insert routes"    on public.routes;
 drop policy if exists "Authenticated users can update routes"    on public.routes;
 drop policy if exists "Authenticated users can delete routes"    on public.routes;
+drop policy if exists "Admins can read routes"                   on public.routes;
 drop policy if exists "Admins can insert routes"                 on public.routes;
 drop policy if exists "Admins can update routes"                 on public.routes;
 drop policy if exists "Admins can delete routes"                 on public.routes;
 
-create policy "Anyone can read routes"
-  on public.routes for select using (true);
+create policy "Admins can read routes"
+  on public.routes for select using (public.is_admin_user());
 
 create policy "Admins can insert routes"
   on public.routes for insert with check (public.is_admin_user());
@@ -157,7 +158,7 @@ alter table public.games add column if not exists requires_payment boolean not n
 alter table public.games add column if not exists price_in_cents   integer  not null default 0;
 alter table public.games add column if not exists supports_offline boolean not null default false;
 alter table public.games add column if not exists final_question   text     not null default '';
-alter table public.games add column if not exists final_answer     text     not null default '';
+alter table public.games drop column if exists final_answer;
 
 -- -----------------------------------------------------------------------------
 -- game_final_answers — protected store for final-question answers

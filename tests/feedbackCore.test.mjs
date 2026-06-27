@@ -27,6 +27,7 @@ test('buildFeedbackContext normalizes defaults and trims winner fields', () => {
     totalAnswerTimeMs: '1200',
     playerId: 'p1',
     playerSessionId: 's1',
+    scoreSessionToken: 'signed-token',
     winnerName: '  Alice ',
     winnerPhone: ' 06123 ',
     finalQuestionPrompt: 'Final?',
@@ -38,6 +39,7 @@ test('buildFeedbackContext normalizes defaults and trims winner fields', () => {
   assert.equal(ctx.finalScore, 42);
   assert.equal(ctx.totalAnswerTimeMs, 1200);
   assert.equal(ctx.playerSessionId, 's1');
+  assert.equal(ctx.scoreSessionToken, 'signed-token');
   assert.equal(ctx.winnerName, 'Alice');
   assert.equal(ctx.winnerPhone, '06123');
   assert.equal(ctx.finalQuestionPrompt, 'Final?');
@@ -50,33 +52,20 @@ test('buildFeedbackContext normalizes defaults and trims winner fields', () => {
 });
 
 test('buildScoreNameOperation returns correct modes and null cases', () => {
-  assert.equal(buildScoreNameOperation({ requiresPayment: true, name: '', gameId: 'g', playerId: 'p', playerSessionId: 's', paymentToken: 't' }), null);
-  assert.equal(buildScoreNameOperation({ requiresPayment: true, name: 'Alice', gameId: '', playerId: 'p', playerSessionId: 's', paymentToken: 't' }), null);
+  assert.equal(buildScoreNameOperation({ name: '', gameId: 'g', playerSessionId: 's', sessionToken: 'token' }), null);
+  assert.equal(buildScoreNameOperation({ name: 'Alice', gameId: '', playerSessionId: 's', sessionToken: 'token' }), null);
 
-  assert.equal(buildScoreNameOperation({ requiresPayment: true, name: 'Alice', gameId: 'g', playerId: 'p', playerSessionId: '', paymentToken: 't' }), null);
+  assert.equal(buildScoreNameOperation({ name: 'Alice', gameId: 'g', playerSessionId: '', sessionToken: 'token' }), null);
+  assert.equal(buildScoreNameOperation({ name: 'Alice', gameId: 'g', playerSessionId: 's', sessionToken: '' }), null);
 
-  const paid = buildScoreNameOperation({
-    requiresPayment: true,
+  const operation = buildScoreNameOperation({
     name: 'Alice',
     gameId: 'g',
-    playerId: 'p',
     playerSessionId: 's',
-    paymentToken: 't',
+    sessionToken: 'token',
   });
-  assert.equal(paid.mode, 'session');
-  assert.equal(paid.payload.player_session_id, 's');
-
-  assert.equal(buildScoreNameOperation({ requiresPayment: false, name: 'Bob', gameId: 'g', playerId: '', playerSessionId: 's', paymentToken: null }), null);
-
-  const free = buildScoreNameOperation({
-    requiresPayment: false,
-    name: 'Bob',
-    gameId: 'g',
-    playerId: 'p',
-    playerSessionId: 's',
-    paymentToken: null,
-  });
-  assert.equal(free.mode, 'player');
-  assert.equal(free.payload.player_id, 'p');
+  assert.equal(operation.mode, 'session');
+  assert.equal(operation.payload.player_session_id, 's');
+  assert.equal(operation.payload.session_token, 'token');
 });
 

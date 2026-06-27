@@ -7,6 +7,7 @@ import {
   createPlaySessionId,
   fetchScoreboard,
   getPlayerId,
+  initScoreSession,
   recordScoreEvent,
   setScoreDisplayName,
   setScoreDisplayNameBySession,
@@ -112,6 +113,7 @@ test('score service calls use fetch with expected function names', async () => {
   };
 
   try {
+    await initScoreSession({ game_id: 'g1', player_id: 'p1' });
     await recordScoreEvent({ a: 1 });
     await fetchScoreboard({ b: 2 });
     await setScoreDisplayName({ c: 3 });
@@ -120,11 +122,12 @@ test('score service calls use fetch with expected function names', async () => {
     globalThis.fetch = originalFetch;
   }
 
-  assert.equal(calls.length, 4);
-  assert.match(calls[0].url, /\/functions\/v1\/record-score-event$/);
-  assert.match(calls[1].url, /\/functions\/v1\/get-scoreboard$/);
-  assert.match(calls[2].url, /\/functions\/v1\/set-score-display-name$/);
-  assert.match(calls[3].url, /\/functions\/v1\/set-score-display-name-by-session$/);
+  assert.equal(calls.length, 5);
+  assert.match(calls[0].url, /\/functions\/v1\/init-score-session$/);
+  assert.match(calls[1].url, /\/functions\/v1\/record-score-event$/);
+  assert.match(calls[2].url, /\/functions\/v1\/get-scoreboard$/);
+  assert.match(calls[3].url, /\/functions\/v1\/set-score-display-name$/);
+  assert.match(calls[4].url, /\/functions\/v1\/set-score-display-name-by-session$/);
   assert.equal(calls[0].options.method, 'POST');
 });
 

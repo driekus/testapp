@@ -145,7 +145,12 @@ export async function loadRankingsView({
       const topThree = (json.top ?? []).slice(0, 3);
       const mine = json.mine ?? [];
       const bestMine = mine[0] ?? null;
-      const inTopThree = Boolean(bestMine && topThree.some((row) => row.player_session_id === bestMine.player_session_id));
+      const inTopThree = Boolean(bestMine && topThree.some((row) =>
+        row.is_me
+        && row.rank === bestMine.rank
+        && row.score === bestMine.score
+        && row.total_answer_time_ms === bestMine.total_answer_time_ms,
+      ));
       if (bestMine && !inTopThree) {
         els.scoreboardList.appendChild(renderScoreRow({ entry: bestMine, tm, createElement, options: { isBestMine: true } }));
       }

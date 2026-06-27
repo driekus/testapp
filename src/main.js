@@ -9,8 +9,8 @@ import {
   SCORE_EVENT_TYPES,
   buildScoreEventKey,
   buildRankingsUrl,
-  createPlaySessionId,
   getPlayerId,
+  initScoreSession,
   recordScoreEvent,
 } from './scoreService.js';
 import {
@@ -97,6 +97,7 @@ const state = {
   hintVisible: false,
   playerId: '',
   playerSessionId: '',
+  scoreSessionToken: '',
   score: 0,
   lastScoreDelta: 0,
   totalAnswerTimeMs: 0,
@@ -364,7 +365,7 @@ async function edgeFunctionUrl(name) {
  * @returns {Promise<void>}
  */
 async function recordProgressEvent(eventType, extra = {}) {
-  if (!state.gameId || !state.playerSessionId || !state.currentRouteId) return;
+  if (!state.gameId || !state.playerSessionId || !state.scoreSessionToken || !state.currentRouteId) return;
 
   try {
     const previousScore = state.score;
@@ -372,6 +373,7 @@ async function recordProgressEvent(eventType, extra = {}) {
       game_id: state.gameId,
       player_id: state.playerId,
       player_session_id: state.playerSessionId,
+      session_token: state.scoreSessionToken,
       event_type: eventType,
       event_key: buildScoreEventKey(state.currentRouteId, state.currentLocationIndex, eventType),
       ...extra,
@@ -585,6 +587,7 @@ function completeCurrentLocation(letter = null) {
            score: state.score,
            totalAnswerTimeMs: state.totalAnswerTimeMs,
            playerSessionId: state.playerSessionId,
+            scoreSessionToken: state.scoreSessionToken,
            logoUrl: els.gameLogo?.src || '',
            requiresPayment: state.requiresPayment,
            paymentToken: state.paymentToken,
@@ -725,6 +728,23 @@ async function loadGame() {
   let shouldAutoResumeTracking = false;
   updateUi();
 
+  async function issueScoreSessionForCurrentGame() {
+    const json = await initScoreSession({
+      game_id: state.gameId,
+      player_id: state.playerId,
+      payment_token: state.requiresPayment ? state.paymentToken : null,
+    });
+
+    if (!json?.player_session_id || !json?.session_token) {
+      throw new Error('Score session initialization failed');
+    }
+
+    return {
+      playerSessionId: String(json.player_session_id),
+      scoreSessionToken: String(json.session_token),
+    };
+  }
+
   try {
     const game = await fetchGameForPlay(slug);
 
@@ -736,8 +756,6 @@ async function loadGame() {
       await loadGameStyles(game.id);
       state.gameId = game.id;
       state.playerId = getPlayerId(slug);
-      const freshPlaySessionId = createPlaySessionId();
-      state.playerSessionId = freshPlaySessionId;
 
       state.requiresPayment = Boolean(game.requires_payment);
       state.priceInCents = Number(game.price_in_cents) || 0;
@@ -758,6 +776,9 @@ async function loadGame() {
       state.offlineMode = Boolean(useOfflineCache);
       if (!state.offlineMode) {
         state.offlineCacheExpiry = null;
+      }
+      if (state.requiresPayment && useOfflineCache && !state.paymentToken) {
+        state.paymentToken = getStoredPaymentToken(slug);
       }
 
       if (state.requiresPayment && !useOfflineCache) {
@@ -830,7 +851,9 @@ async function loadGame() {
         state.hintVisible = false;
         state.lastLetterGrantedAt = 0;
         state.routeComplete = false;
-        state.playerSessionId = freshPlaySessionId;
+        const issuedSession = await issueScoreSessionForCurrentGame();
+        state.playerSessionId = issuedSession.playerSessionId;
+        state.scoreSessionToken = issuedSession.scoreSessionToken;
         state.score = 0;
         state.lastScoreDelta = 0;
         state.totalAnswerTimeMs = 0;
@@ -841,7 +864,12 @@ async function loadGame() {
         const saved = loadSavedSession();
         const liveIds = game.routes.map((r) => r.id).join(',');
         const savedIds = saved?.gameRoutes?.map((r) => r.id).join(',');
-        const compatible = saved?.v === 1 && liveIds === savedIds && saved.route?.length > 0;
+        const compatible =
+          saved?.v === 1
+          && liveIds === savedIds
+          && saved.route?.length > 0
+          && Boolean(saved.playerSessionId)
+          && Boolean(saved.scoreSessionToken);
 
         if (compatible) {
           state.gameRoutes = saved.gameRoutes;
@@ -856,7 +884,8 @@ async function loadGame() {
           state.routeComplete = saved.routeComplete ?? false;
           state.lastLetterGrantedAt = saved.lastLetterGrantedAt ?? 0;
           state.playerId = saved.playerId || state.playerId;
-          state.playerSessionId = saved.playerSessionId || freshPlaySessionId;
+          state.playerSessionId = saved.playerSessionId;
+          state.scoreSessionToken = String(saved.scoreSessionToken ?? '');
           state.playerDisplayName = saved.playerDisplayName || '';
           state.score = Number(saved.score) || 0;
           state.lastScoreDelta = Number(saved.lastScoreDelta) || 0;
@@ -885,7 +914,9 @@ async function loadGame() {
           state.hintVisible = false;
           state.lastLetterGrantedAt = 0;
           state.routeComplete = false;
-          state.playerSessionId = freshPlaySessionId;
+          const issuedSession = await issueScoreSessionForCurrentGame();
+          state.playerSessionId = issuedSession.playerSessionId;
+          state.scoreSessionToken = issuedSession.scoreSessionToken;
           state.score = 0;
           state.lastScoreDelta = 0;
           state.totalAnswerTimeMs = 0;

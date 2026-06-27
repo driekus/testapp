@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireAuthorizedScoreSession } from './scoreSession.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -31,12 +32,12 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { game_id, player_id, player_session_id, answer, payment_token, check_only } = await req.json();
+    const { game_id, player_id, player_session_id, answer, payment_token, session_token, check_only } = await req.json();
     const isCheckOnly = Boolean(check_only);
 
-    if (!game_id || !player_id || !player_session_id || (!isCheckOnly && answer == null)) {
+    if (!game_id || !player_id || !player_session_id || !session_token || (!isCheckOnly && answer == null)) {
       return Response.json(
-        { error: 'Missing game_id, player_id, player_session_id or answer' },
+        { error: 'Missing game_id, player_id, player_session_id, session_token or answer' },
         { status: 400, headers: CORS },
       );
     }
@@ -45,6 +46,16 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SERVICE_ROLE_KEY')!,
     );
+
+    const sessionAuth = await requireAuthorizedScoreSession({
+      gameId: game_id,
+      playerId: player_id,
+      playerSessionId: player_session_id,
+      sessionToken: String(session_token ?? '').trim(),
+    });
+    if (!sessionAuth.ok) {
+      return Response.json({ error: sessionAuth.error }, { status: sessionAuth.status, headers: CORS });
+    }
 
     const { data: game, error: gameError } = await supabase
       .from('games')

@@ -30,6 +30,7 @@ export function createSessionStore({ sessionKey, storage, state }) {
         lastLetterGrantedAt: state.lastLetterGrantedAt,
         playerId: state.playerId,
         playerSessionId: state.playerSessionId,
+        scoreSessionToken: state.scoreSessionToken,
         playerDisplayName: state.playerDisplayName,
         score: state.score,
         lastScoreDelta: state.lastScoreDelta,

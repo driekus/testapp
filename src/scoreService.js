@@ -106,6 +106,16 @@ export function buildScoreEventKey(routeId, locationIndex, eventType) {
 }
 
 /**
+ * Request a server-issued score session for the current playthrough.
+ * The returned token authorizes later score and final-question mutations.
+ * @param {object} payload - Payload containing game_id, player_id and optional payment_token.
+ * @returns {Promise<{ player_session_id: string, session_token: string }>}
+ */
+export async function initScoreSession(payload) {
+  return callScoreFunction('init-score-session', payload);
+}
+
+/**
  * Send a score event to the `record-score-event` Supabase Edge Function.
  * @param {object} payload - Event payload (player_id, session_id, event_type, points, …).
  * @returns {Promise<object>} Parsed JSON response from the function.

@@ -133,13 +133,13 @@ test('loadRankingsView renders top rows and my runs including best mine outside 
     },
     fetchScoreboard: async () => ({
       top: [
-        { rank: 1, display_name: 'Alice', score: 100, player_session_id: 's1' },
-        { rank: 2, display_name: 'Bob', score: 90, player_session_id: 's2' },
-        { rank: 3, display_name: 'Cara', score: 80, player_session_id: 's3' },
+        { rank: 1, display_name: 'Alice', score: 100, total_answer_time_ms: 1000, is_me: false },
+        { rank: 2, display_name: 'Bob', score: 90, total_answer_time_ms: 1200, is_me: false },
+        { rank: 3, display_name: 'Cara', score: 80, total_answer_time_ms: 1400, is_me: false },
       ],
       mine: [
-        { rank: 5, display_name: '', score: 70, player_session_id: 'sx' },
-        { rank: 8, display_name: '', score: 60, player_session_id: 'sy' },
+        { rank: 5, display_name: '', score: 70, total_answer_time_ms: 1600, is_me: true },
+        { rank: 8, display_name: '', score: 60, total_answer_time_ms: 1800, is_me: true },
       ],
     }),
     windowRef: { location: { replace() {} } },

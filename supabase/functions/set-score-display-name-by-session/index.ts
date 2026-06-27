@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireAuthorizedScoreSession } from './scoreSession.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -10,15 +11,17 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: CORS });
   }
 
-  try {
-    // payment_token is required for paid-game sessions to prove ownership.
-    // It is matched against payment_sessions to ensure the caller actually paid for this session.
-    const { game_id, player_session_id, display_name, payment_token } = await req.json();
+  if (req.method !== 'POST') {
+    return Response.json({ error: 'Method not allowed' }, { status: 405, headers: CORS });
+  }
 
-    if (!game_id || !player_session_id || !display_name) {
+  try {
+    const { game_id, player_session_id, display_name, session_token } = await req.json();
+
+    if (!game_id || !player_session_id || !display_name || !session_token) {
       return Response.json(
-        { error: 'Missing game_id, player_session_id, or display_name' },
-        { status: 400, headers: CORS },
+        { error: 'Missing game_id, player_session_id, display_name, or session_token' },
+        { status: 400, headers: CORS }
       );
     }
 
@@ -27,18 +30,28 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'display_name must not be blank' }, { status: 400, headers: CORS });
     }
 
+    const normalizedSessionId = String(player_session_id ?? '').trim();
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SERVICE_ROLE_KEY')!,
     );
 
-    // ── Ownership check: is this a paid session? ──────────────────────────────
-    // Look up the score row to determine if a payment_token should be required.
+    const sessionAuth = await requireAuthorizedScoreSession({
+      gameId: game_id,
+      playerSessionId: normalizedSessionId,
+      sessionToken: String(session_token ?? '').trim(),
+    });
+    if (!sessionAuth.ok) {
+      return Response.json({ error: sessionAuth.error }, { status: sessionAuth.status, headers: CORS });
+    }
+
+    // ── Ownership check: verify session exists for the authorized session id ──────────
     const { data: scoreRow, error: scoreErr } = await supabase
       .from('game_scores')
       .select('id, game_id, player_session_id')
       .eq('game_id', game_id)
-      .eq('player_session_id', player_session_id)
+      .eq('player_session_id', normalizedSessionId)
       .maybeSingle();
 
     if (scoreErr) throw scoreErr;
@@ -47,30 +60,20 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true }, { headers: CORS });
     }
 
-    // If the caller provided a payment_token, verify it matches this session
-    // in payment_sessions. This prevents a third party from renaming someone else's score.
-    if (payment_token) {
-      const { data: paySession, error: payErr } = await supabase
-        .from('payment_sessions')
-        .select('id')
-        .eq('payment_token', payment_token)
-        .maybeSingle();
-
-      if (payErr) throw payErr;
-      if (!paySession) {
-        return Response.json({ error: 'Invalid payment_token' }, { status: 403, headers: CORS });
-      }
-    }
 
     const { error } = await supabase
       .from('game_scores')
-      .update({ display_name: safeName })
+      .update({
+        display_name: safeName,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', scoreRow.id);
 
     if (error) throw error;
 
     return Response.json({ ok: true }, { headers: CORS });
   } catch (err) {
-    return Response.json({ error: String(err) }, { status: 500, headers: CORS });
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    return Response.json({ error: errorMessage }, { status: 500, headers: CORS });
   }
 });
