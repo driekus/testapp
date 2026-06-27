@@ -12,15 +12,8 @@ This rollout avoids lockout when moving from broad authenticated admin writes to
 
 ## Add another admin
 
-```sql
-insert into public.admin_users (user_id, created_by)
-select target.id, actor.id
-from auth.users target
-cross join auth.users actor
-where lower(target.email) = lower('new-admin@example.com')
-  and lower(actor.email) = lower('owner@example.com')
-on conflict (user_id) do nothing;
-```
+Use `supabase/admin-bootstrap.sql` as a template and update the target/actor emails.
+Keep SQL snippets in `.sql` files so editor SQL inspections can be configured per file.
 
 ## Recovery playbook (if no admin can edit)
 

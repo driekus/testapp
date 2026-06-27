@@ -7,7 +7,6 @@ import {
   signInWithGitHub,
   signInWithPassword,
   signOutUser,
-  signUpWithPassword,
   supabase,
 } from '../supabaseClient.js';
 import {
@@ -105,7 +104,7 @@ const {
   els, state, ta,
   DEFAULT_ROUTE, DEFAULT_ROUTE_LENGTH, DEFAULT_GAME_STYLES,
   hasSupabaseConfig,
-  getCurrentUser, signInWithPassword, signUpWithPassword, signInWithGitHub, signOutUser,
+  getCurrentUser, signInWithPassword, signInWithGitHub, signOutUser,
   saveGame, createRoute, deleteGame, saveGameStyles, saveRoute, deleteRoute,
   setStatus, setGameStatus, sanitizeSlugInput, eurosToCents,
   updateAuthUi, renderGameStyleEditor, collectStylesFromInputs,

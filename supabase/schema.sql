@@ -1,3 +1,4 @@
+-- noinspection SqlNoDataSourceInspectionForFile
 -- Supabase schema for Letter Quest — multi-game, multi-route edition
 -- Safe to run on a fresh database.
 -- For migration from the previous single-route schema, see the bottom of this file.

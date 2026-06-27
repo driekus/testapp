@@ -42,7 +42,9 @@ Deno.serve(async (req) => {
       .eq('id', game_id)
       .maybeSingle();
 
-    if (gameError) throw gameError;
+    if (gameError) {
+      return Response.json({ error: gameError.message }, { status: 500, headers: CORS });
+    }
     if (!game) {
       return Response.json({ error: 'Game not found' }, { status: 404, headers: CORS });
     }
@@ -61,7 +63,9 @@ Deno.serve(async (req) => {
         .eq('played', false)
         .maybeSingle();
 
-      if (paymentError) throw paymentError;
+      if (paymentError) {
+        return Response.json({ error: paymentError.message }, { status: 500, headers: CORS });
+      }
       if (!session) {
         return Response.json({ error: 'Invalid or consumed payment token' }, { status: 403, headers: CORS });
       }

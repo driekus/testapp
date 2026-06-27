@@ -46,7 +46,9 @@ Deno.serve(async (req) => {
       .select('player_id, player_session_id, display_name, score, total_answer_time_ms, created_at')
       .eq('game_id', game_id);
 
-    if (error) throw error;
+    if (error) {
+      return Response.json({ error: error.message }, { status: 500, headers: CORS });
+    }
 
     const ranked = (data ?? []).slice().sort(sortRows);
 

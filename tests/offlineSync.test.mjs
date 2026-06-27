@@ -117,8 +117,7 @@ test('downloadGameOffline handles missing game payload, storage failures and thr
 test('downloadGameOffline stores cache and cache helpers read it', async () => {
   const originalFetch = globalThis.fetch;
   const originalStorage = globalThis.localStorage;
-  const storage = createStorage();
-  globalThis.localStorage = storage;
+  globalThis.localStorage = createStorage();
 
   globalThis.fetch = async () => ({
     ok: true,

@@ -1,3 +1,6 @@
+// @ts-nocheck
+declare const Deno: any;
+// @ts-ignore -- Deno edge runtime resolves remote import at deploy/runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireAuthorizedScoreSession } from './scoreSession.ts';
 
@@ -54,7 +57,9 @@ Deno.serve(async (req) => {
       .eq('player_session_id', normalizedSessionId)
       .maybeSingle();
 
-    if (scoreErr) throw scoreErr;
+    if (scoreErr) {
+      return Response.json({ error: scoreErr.message }, { status: 500, headers: CORS });
+    }
     if (!scoreRow) {
       // Score row doesn't exist yet — nothing to update, return ok silently
       return Response.json({ ok: true }, { headers: CORS });
@@ -69,7 +74,9 @@ Deno.serve(async (req) => {
       })
       .eq('id', scoreRow.id);
 
-    if (error) throw error;
+    if (error) {
+      return Response.json({ error: error.message }, { status: 500, headers: CORS });
+    }
 
     return Response.json({ ok: true }, { headers: CORS });
   } catch (err) {

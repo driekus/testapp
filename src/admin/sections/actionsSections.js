@@ -10,7 +10,6 @@
  * @param {boolean} deps.hasSupabaseConfig
  * @param {Function} deps.getCurrentUser
  * @param {Function} deps.signInWithPassword
- * @param {Function} deps.signUpWithPassword
  * @param {Function} deps.signInWithGitHub
  * @param {Function} deps.signOutUser
  * @param {Function} deps.saveGame
@@ -45,7 +44,6 @@ export function createActionsSections({
   hasSupabaseConfig,
   getCurrentUser,
   signInWithPassword,
-  signUpWithPassword,
   signInWithGitHub,
   signOutUser,
   saveGame,

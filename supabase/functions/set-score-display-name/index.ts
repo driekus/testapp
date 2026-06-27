@@ -58,7 +58,9 @@ Deno.serve(async (req) => {
       .eq('player_session_id', normalizedSessionId)
       .maybeSingle();
 
-    if (lookupError) throw lookupError;
+    if (lookupError) {
+      return Response.json({ error: lookupError.message }, { status: 500, headers: CORS });
+    }
     if (!scoreRow) {
       return Response.json({ error: 'Score entry not found' }, { status: 404, headers: CORS });
     }
@@ -71,7 +73,9 @@ Deno.serve(async (req) => {
       })
       .eq('id', scoreRow.id);
 
-    if (error) throw error;
+    if (error) {
+      return Response.json({ error: error.message }, { status: 500, headers: CORS });
+    }
 
     return Response.json({ ok: true }, { headers: CORS });
   } catch (err) {
