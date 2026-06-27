@@ -12,26 +12,69 @@ create table if not exists public.games (
   updated_at   timestamptz not null default now()
 );
 
+-- -----------------------------------------------------------------------------
+-- admin_users — allowlist of app-level admins
+-- -----------------------------------------------------------------------------
+create table if not exists public.admin_users (
+  user_id    uuid        primary key references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  created_by uuid        references auth.users(id)
+);
+
+alter table public.admin_users enable row level security;
+
+create or replace function public.is_admin_user()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.admin_users
+    where user_id = auth.uid()
+  );
+$$;
+
+revoke all on function public.is_admin_user() from public;
+grant execute on function public.is_admin_user() to authenticated;
+
+drop policy if exists "Admins can read admin_users"      on public.admin_users;
+drop policy if exists "Admins can manage admin_users"    on public.admin_users;
+
+create policy "Admins can read admin_users"
+  on public.admin_users for select
+  using (auth.uid() = user_id or public.is_admin_user());
+
+create policy "Admins can manage admin_users"
+  on public.admin_users for all
+  using (public.is_admin_user())
+  with check (public.is_admin_user());
+
 alter table public.games enable row level security;
 
 drop policy if exists "Anyone can read games"                   on public.games;
 drop policy if exists "Authenticated users can insert games"    on public.games;
 drop policy if exists "Authenticated users can update games"    on public.games;
 drop policy if exists "Authenticated users can delete games"    on public.games;
+drop policy if exists "Admins can insert games"                 on public.games;
+drop policy if exists "Admins can update games"                 on public.games;
+drop policy if exists "Admins can delete games"                 on public.games;
 
 create policy "Anyone can read games"
   on public.games for select using (true);
 
-create policy "Authenticated users can insert games"
-  on public.games for insert with check (auth.role() = 'authenticated');
+create policy "Admins can insert games"
+  on public.games for insert with check (public.is_admin_user());
 
-create policy "Authenticated users can update games"
+create policy "Admins can update games"
   on public.games for update
-  using  (auth.role() = 'authenticated')
-  with check (auth.role() = 'authenticated');
+  using  (public.is_admin_user())
+  with check (public.is_admin_user());
 
-create policy "Authenticated users can delete games"
-  on public.games for delete using (auth.role() = 'authenticated');
+create policy "Admins can delete games"
+  on public.games for delete using (public.is_admin_user());
 
 -- -----------------------------------------------------------------------------
 -- routes — ordered list of 5-location routes that belong to a game
@@ -52,20 +95,23 @@ drop policy if exists "Anyone can read routes"                   on public.route
 drop policy if exists "Authenticated users can insert routes"    on public.routes;
 drop policy if exists "Authenticated users can update routes"    on public.routes;
 drop policy if exists "Authenticated users can delete routes"    on public.routes;
+drop policy if exists "Admins can insert routes"                 on public.routes;
+drop policy if exists "Admins can update routes"                 on public.routes;
+drop policy if exists "Admins can delete routes"                 on public.routes;
 
 create policy "Anyone can read routes"
   on public.routes for select using (true);
 
-create policy "Authenticated users can insert routes"
-  on public.routes for insert with check (auth.role() = 'authenticated');
+create policy "Admins can insert routes"
+  on public.routes for insert with check (public.is_admin_user());
 
-create policy "Authenticated users can update routes"
+create policy "Admins can update routes"
   on public.routes for update
-  using  (auth.role() = 'authenticated')
-  with check (auth.role() = 'authenticated');
+  using  (public.is_admin_user())
+  with check (public.is_admin_user());
 
-create policy "Authenticated users can delete routes"
-  on public.routes for delete using (auth.role() = 'authenticated');
+create policy "Admins can delete routes"
+  on public.routes for delete using (public.is_admin_user());
 
 -- -----------------------------------------------------------------------------
 -- Migration: remove legacy route column from games if it still exists
@@ -128,20 +174,24 @@ drop policy if exists "Authenticated users can read game_final_answers"   on pub
 drop policy if exists "Authenticated users can insert game_final_answers" on public.game_final_answers;
 drop policy if exists "Authenticated users can update game_final_answers" on public.game_final_answers;
 drop policy if exists "Authenticated users can delete game_final_answers" on public.game_final_answers;
+drop policy if exists "Admins can read game_final_answers"                on public.game_final_answers;
+drop policy if exists "Admins can insert game_final_answers"              on public.game_final_answers;
+drop policy if exists "Admins can update game_final_answers"              on public.game_final_answers;
+drop policy if exists "Admins can delete game_final_answers"              on public.game_final_answers;
 
-create policy "Authenticated users can read game_final_answers"
-  on public.game_final_answers for select using (auth.role() = 'authenticated');
+create policy "Admins can read game_final_answers"
+  on public.game_final_answers for select using (public.is_admin_user());
 
-create policy "Authenticated users can insert game_final_answers"
-  on public.game_final_answers for insert with check (auth.role() = 'authenticated');
+create policy "Admins can insert game_final_answers"
+  on public.game_final_answers for insert with check (public.is_admin_user());
 
-create policy "Authenticated users can update game_final_answers"
+create policy "Admins can update game_final_answers"
   on public.game_final_answers for update
-  using (auth.role() = 'authenticated')
-  with check (auth.role() = 'authenticated');
+  using (public.is_admin_user())
+  with check (public.is_admin_user());
 
-create policy "Authenticated users can delete game_final_answers"
-  on public.game_final_answers for delete using (auth.role() = 'authenticated');
+create policy "Admins can delete game_final_answers"
+  on public.game_final_answers for delete using (public.is_admin_user());
 
 -- -----------------------------------------------------------------------------
 -- payment_sessions — one row per payment attempt
@@ -230,20 +280,23 @@ drop policy if exists "Anyone can read game_styles"                   on public.
 drop policy if exists "Authenticated users can insert game_styles"    on public.game_styles;
 drop policy if exists "Authenticated users can update game_styles"    on public.game_styles;
 drop policy if exists "Authenticated users can delete game_styles"    on public.game_styles;
+drop policy if exists "Admins can insert game_styles"                 on public.game_styles;
+drop policy if exists "Admins can update game_styles"                 on public.game_styles;
+drop policy if exists "Admins can delete game_styles"                 on public.game_styles;
 
 create policy "Anyone can read game_styles"
   on public.game_styles for select using (true);
 
-create policy "Authenticated users can insert game_styles"
-  on public.game_styles for insert with check (auth.role() = 'authenticated');
+create policy "Admins can insert game_styles"
+  on public.game_styles for insert with check (public.is_admin_user());
 
-create policy "Authenticated users can update game_styles"
+create policy "Admins can update game_styles"
   on public.game_styles for update
-  using  (auth.role() = 'authenticated')
-  with check (auth.role() = 'authenticated');
+  using  (public.is_admin_user())
+  with check (public.is_admin_user());
 
-create policy "Authenticated users can delete game_styles"
-  on public.game_styles for delete using (auth.role() = 'authenticated');
+create policy "Admins can delete game_styles"
+  on public.game_styles for delete using (public.is_admin_user());
 
 -- -----------------------------------------------------------------------------
 -- game_scores + score_events — player progress and leaderboard metrics
@@ -335,18 +388,20 @@ on conflict (id) do nothing;
 drop policy if exists "Public read location images"          on storage.objects;
 drop policy if exists "Authenticated upload location images" on storage.objects;
 drop policy if exists "Authenticated delete location images" on storage.objects;
+drop policy if exists "Admin upload location images"         on storage.objects;
+drop policy if exists "Admin delete location images"         on storage.objects;
 
 create policy "Public read location images"
   on storage.objects for select
   using (bucket_id = 'location-images');
 
-create policy "Authenticated upload location images"
+create policy "Admin upload location images"
   on storage.objects for insert
-  with check (bucket_id = 'location-images' and auth.role() = 'authenticated');
+  with check (bucket_id = 'location-images' and public.is_admin_user());
 
-create policy "Authenticated delete location images"
+create policy "Admin delete location images"
   on storage.objects for delete
-  using (bucket_id = 'location-images' and auth.role() = 'authenticated');
+  using (bucket_id = 'location-images' and public.is_admin_user());
 
 -- Refresh PostgREST schema cache after DDL changes.
 notify pgrst, 'reload schema';

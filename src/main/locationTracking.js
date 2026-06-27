@@ -93,10 +93,18 @@ export function createLocationTracking({
         currentTarget.lat,
         currentTarget.lng,
       );
-      if (state.lastDistanceToTarget !== null && newDistance > state.lastDistanceToTarget + 10) {
-        playDoubleBeep();
+      if (state.lastDistanceToTarget === null || newDistance < state.lastDistanceToTarget) {
+        state.lastDistanceToTarget = newDistance;
       }
-      state.lastDistanceToTarget = newDistance;
+
+      if (
+          state.lastDistanceToTarget !== null &&
+          newDistance >= 30 &&
+          newDistance > state.lastDistanceToTarget + 10
+      ) {
+        playDoubleBeep();
+        state.lastDistanceToTarget = newDistance;
+      }
     }
 
     checkArrival();

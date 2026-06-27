@@ -1,8 +1,13 @@
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../supabaseClient.js';
 
 const OFFLINE_CACHE_KEY_PREFIX = 'letter-quest-offline-cache-';
+const OFFLINE_CACHE_KEY_MATERIAL_PREFIX = 'letter-quest-offline-cache-key-';
 const CACHE_EXPIRY_DAYS = 7;
 const CACHE_EXPIRY_MS = CACHE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+const OFFLINE_CACHE_VERSION = 2;
+
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
 
 /**
  * Get the local storage key for a game's offline cache.
@@ -11,6 +16,173 @@ const CACHE_EXPIRY_MS = CACHE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
  */
 function getCacheKey(slug) {
   return `${OFFLINE_CACHE_KEY_PREFIX}${slug}`;
+}
+
+/**
+ * Get the local storage key for per-game encryption key material.
+ * @param {string} slug
+ * @returns {string}
+ */
+function getCacheKeyMaterialStorageKey(slug) {
+  return `${OFFLINE_CACHE_KEY_MATERIAL_PREFIX}${slug}`;
+}
+
+/**
+ * Encode bytes to Base64 in both browser and Node test runtimes.
+ * @param {Uint8Array} bytes
+ * @returns {string}
+ */
+function bytesToBase64(bytes) {
+  if (typeof btoa === 'function') {
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 1) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+  return Buffer.from(bytes).toString('base64');
+}
+
+/**
+ * Decode Base64 into bytes in both browser and Node test runtimes.
+ * @param {string} base64
+ * @returns {Uint8Array}
+ */
+function base64ToBytes(base64) {
+  if (typeof atob === 'function') {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+  return new Uint8Array(Buffer.from(base64, 'base64'));
+}
+
+/**
+ * Return true when Web Crypto AES-GCM is available.
+ * @returns {boolean}
+ */
+function hasWebCryptoAes() {
+  return Boolean(globalThis.crypto?.subtle && globalThis.crypto?.getRandomValues);
+}
+
+/**
+ * Load or create per-game AES key material and import it for crypto operations.
+ * @param {string} slug
+ * @param {boolean} createIfMissing
+ * @returns {Promise<CryptoKey | null>}
+ */
+async function getOfflineCacheCryptoKey(slug, createIfMissing) {
+  if (!hasWebCryptoAes()) return null;
+
+  const keyStorageKey = getCacheKeyMaterialStorageKey(slug);
+  let keyMaterialBase64 = null;
+
+  try {
+    keyMaterialBase64 = localStorage.getItem(keyStorageKey);
+  } catch {
+    return null;
+  }
+
+  if (!keyMaterialBase64) {
+    if (!createIfMissing) return null;
+    const rawKey = new Uint8Array(32);
+    crypto.getRandomValues(rawKey);
+    keyMaterialBase64 = bytesToBase64(rawKey);
+    try {
+      localStorage.setItem(keyStorageKey, keyMaterialBase64);
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    const rawKey = base64ToBytes(keyMaterialBase64);
+    return await crypto.subtle.importKey(
+      'raw',
+      rawKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt'],
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Encrypt cache payload before persisting to localStorage.
+ * @param {string} slug
+ * @param {{ game: object, timestamp: number, expiresAt: number }} payload
+ * @returns {Promise<object>}
+ */
+async function encryptCachePayload(slug, payload) {
+  const cryptoKey = await getOfflineCacheCryptoKey(slug, true);
+  if (!cryptoKey) {
+    throw new Error('Offline encryption is unavailable in this browser');
+  }
+
+  const iv = new Uint8Array(12);
+  crypto.getRandomValues(iv);
+
+  const cipherBuffer = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    cryptoKey,
+    textEncoder.encode(JSON.stringify(payload)),
+  );
+
+  return {
+    version: OFFLINE_CACHE_VERSION,
+    encrypted: true,
+    timestamp: payload.timestamp,
+    expiresAt: payload.expiresAt,
+    iv: bytesToBase64(iv),
+    payload: bytesToBase64(new Uint8Array(cipherBuffer)),
+  };
+}
+
+/**
+ * Decrypt previously encrypted cache payload.
+ * @param {string} slug
+ * @param {object} envelope
+ * @returns {Promise<{ game: object, timestamp: number, expiresAt: number } | null>}
+ */
+async function decryptCachePayload(slug, envelope) {
+  if (!envelope || envelope.encrypted !== true) {
+    // Backward compatibility for old plain-text cache values.
+    if (envelope && envelope.game && envelope.expiresAt) {
+      return {
+        game: envelope.game,
+        timestamp: Number(envelope.timestamp) || Date.now(),
+        expiresAt: Number(envelope.expiresAt),
+      };
+    }
+    return null;
+  }
+
+  const cryptoKey = await getOfflineCacheCryptoKey(slug, false);
+  if (!cryptoKey) return null;
+
+  try {
+    const iv = base64ToBytes(String(envelope.iv || ''));
+    const ciphertext = base64ToBytes(String(envelope.payload || ''));
+    const plainBuffer = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      cryptoKey,
+      ciphertext,
+    );
+    const decoded = JSON.parse(textDecoder.decode(plainBuffer));
+    if (!decoded?.game || !decoded?.expiresAt) return null;
+    return {
+      game: decoded.game,
+      timestamp: Number(decoded.timestamp) || Date.now(),
+      expiresAt: Number(decoded.expiresAt),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -66,9 +238,11 @@ export async function downloadGameOffline(slug, paymentToken = null) {
       expiresAt,
     };
 
-    // Store in localStorage
+    const encryptedPayload = await encryptCachePayload(slug, cacheData);
+
+    // Store encrypted payload in localStorage.
     try {
-      localStorage.setItem(getCacheKey(slug), JSON.stringify(cacheData));
+      localStorage.setItem(getCacheKey(slug), JSON.stringify(encryptedPayload));
     } catch (err) {
       return { success: false, error: 'Failed to store cache: ' + String(err) };
     }
@@ -84,14 +258,15 @@ export async function downloadGameOffline(slug, paymentToken = null) {
  * @param {string} slug - Game slug.
  * @returns {boolean}
  */
-export function isGameCached(slug) {
+export async function isGameCached(slug) {
   if (!slug) return false;
 
   try {
     const raw = localStorage.getItem(getCacheKey(slug));
     if (!raw) return false;
 
-    const cache = JSON.parse(raw);
+    const envelope = JSON.parse(raw);
+    const cache = await decryptCachePayload(slug, envelope);
     return isCacheValid(cache);
   } catch {
     return false;
@@ -104,17 +279,19 @@ export function isGameCached(slug) {
  * @param {string} slug - Game slug.
  * @returns {{ game: object, expiresAt: number } | null}
  */
-export function loadCachedGame(slug) {
+export async function loadCachedGame(slug) {
   if (!slug) return null;
 
   try {
     const raw = localStorage.getItem(getCacheKey(slug));
     if (!raw) return null;
 
-    const cache = JSON.parse(raw);
+    const envelope = JSON.parse(raw);
+    const cache = await decryptCachePayload(slug, envelope);
     if (!isCacheValid(cache)) {
       // Clean up expired cache
       localStorage.removeItem(getCacheKey(slug));
+      localStorage.removeItem(getCacheKeyMaterialStorageKey(slug));
       return null;
     }
 
@@ -132,14 +309,15 @@ export function loadCachedGame(slug) {
  * @param {string} slug - Game slug.
  * @returns {string | null} Human-readable expiry date or null if not cached.
  */
-export function getCacheExpiryString(slug) {
+export async function getCacheExpiryString(slug) {
   if (!slug) return null;
 
   try {
     const raw = localStorage.getItem(getCacheKey(slug));
     if (!raw) return null;
 
-    const cache = JSON.parse(raw);
+    const envelope = JSON.parse(raw);
+    const cache = await decryptCachePayload(slug, envelope);
     if (!isCacheValid(cache)) return null;
 
     const expiryDate = new Date(cache.expiresAt);
@@ -158,6 +336,7 @@ export function clearGameCache(slug) {
 
   try {
     localStorage.removeItem(getCacheKey(slug));
+    localStorage.removeItem(getCacheKeyMaterialStorageKey(slug));
   } catch {
     // Ignore errors
   }

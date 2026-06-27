@@ -753,7 +753,7 @@ async function loadGame() {
       }
 
       // Check if offline cache exists for this game
-      const cachedData = loadCachedGame(slug);
+      const cachedData = await loadCachedGame(slug);
       const useOfflineCache = cachedData && state.supportsOffline;
       state.offlineMode = Boolean(useOfflineCache);
       if (!state.offlineMode) {

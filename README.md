@@ -18,9 +18,10 @@ A JavaScript app where users visit 5 locations in order.
 
 1. Create a Supabase project.
 2. Open Supabase SQL Editor and run `supabase/schema.sql`.
-3. Enable Email/Password auth in Supabase (for admin login).
-4. (Optional) Enable GitHub auth provider if you want **Sign in with GitHub** on admin.
-5. Copy `.env.example` to `.env.local` and fill in your values (find them in Supabase → Settings → API):
+3. Before opening `/admin.html`, bootstrap your first admin allowlist row via `supabase/admin-bootstrap.sql` (see `supabase/ADMIN_ROLLOUT_NOTES.md`).
+4. Enable Email/Password auth in Supabase (for admin login).
+5. (Optional) Enable GitHub auth provider if you want **Sign in with GitHub** on admin.
+6. Copy `.env.example` to `.env.local` and fill in your values (find them in Supabase → Settings → API):
 
 ```powershell
 VITE_SUPABASE_URL=https://your-project.supabase.co

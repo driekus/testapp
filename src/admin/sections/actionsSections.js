@@ -111,15 +111,10 @@ export function createActionsSections({
    * Handle password sign-up and refresh admin state.
    */
   async function handleSignUp() {
-    try {
-      const { email, password } = getCredentials();
-      await signUpWithPassword(email, password);
-      state.authStatusMessage = ta('signUpSuccess');
-      await refreshUserState();
-    } catch (err) {
-      state.authStatusMessage = ta('signUpFailed', { message: err.message });
-      updateAuthUi();
-    }
+    state.authStatusMessage = ta('signUpFailed', {
+      message: 'Sign-up is disabled. Ask an administrator to add your account.',
+    });
+    updateAuthUi();
   }
 
   /**
