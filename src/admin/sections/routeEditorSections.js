@@ -329,6 +329,16 @@ export function createRouteEditorSections({
     document.querySelectorAll('.row').forEach((row) => {
       row.classList.toggle('active', Number(row.dataset.rowIndex) === index);
     });
+    if (state.map && state.lastPickedMapLocation) {
+      const { lat, lng, zoom } = state.lastPickedMapLocation;
+      state.map.getView().setCenter(toMapCoordinate(lat, lng));
+      if (Number.isFinite(zoom)) {
+        state.map.getView().setZoom(zoom);
+      }
+      ensureMarker(lat, lng);
+      return;
+    }
+
     const ri = getRowInputs(index);
     const lat = Number(ri.lat.value);
     const lng = Number(ri.lng.value);
@@ -529,6 +539,11 @@ export function createRouteEditorSections({
       const ri = getRowInputs(state.selectedRowIndex);
       ri.lat.value = lat.toFixed(6);
       ri.lng.value = lng.toFixed(6);
+      state.lastPickedMapLocation = {
+        lat,
+        lng,
+        zoom: Number(state.map.getView().getZoom()) || null,
+      };
       ensureMarker(lat, lng);
       setStatus(ta('pickMapUpdated', { row: state.selectedRowIndex + 1 }));
     });
@@ -553,6 +568,8 @@ export function createRouteEditorSections({
       state.currentFinalAnswer = '';
       state.currentGameStyles = { ...DEFAULT_GAME_STYLES };
       state.routes = [];
+      state.lastPickedMapLocation = null;
+      state.editorDirty = false;
       els.editorSection.classList.add('hidden');
       renderGameStyleEditor(DEFAULT_GAME_STYLES);
       if (els.finalQuestion) els.finalQuestion.value = '';
@@ -580,6 +597,7 @@ export function createRouteEditorSections({
        state.currentSupportsOffline = Boolean(game.supports_offline);
        state.currentFinalQuestion = String(game.final_question ?? '');
        state.currentFinalAnswer = String(game.final_answer ?? '');
+        state.lastPickedMapLocation = null;
        const savedStyles = await fetchGameStyles(game.id);
        state.currentGameStyles = { ...DEFAULT_GAME_STYLES, ...(savedStyles ?? {}) };
 
@@ -603,6 +621,7 @@ export function createRouteEditorSections({
         state.map.getView().setZoom(14);
       }
 
+      state.editorDirty = false;
       els.editorSection.classList.remove('hidden');
       setGameStatus('');
     } catch (err) {

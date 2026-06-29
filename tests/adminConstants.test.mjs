@@ -26,6 +26,8 @@ test('createInitialState sets expected defaults and auth status message', async 
     const withConfig = mod.createInitialState(true);
     assert.equal(withConfig.currentRequiresPayment, false);
     assert.equal(withConfig.currentPriceInCents, 0);
+    assert.equal(withConfig.lastPickedMapLocation, null);
+    assert.equal(withConfig.editorDirty, false);
     assert.equal(withConfig.authStatusMessage, mod.ta('signInToLoad'));
 
     const withoutConfig = mod.createInitialState(false);

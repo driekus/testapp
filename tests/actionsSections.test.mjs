@@ -16,6 +16,8 @@ function createDeps(overrides = {}) {
     syncFormFromRoute: [],
     renderRouteTabs: 0,
     updateAuthUi: 0,
+    refreshGameList: 0,
+    loadGameIntoEditor: [],
   };
 
   const deps = {
@@ -47,6 +49,7 @@ function createDeps(overrides = {}) {
       routes: [{ id: null, order_index: 0, display_name: 'Route 1', route: [{ name: 'A' }] }],
       currentRouteIndex: 0,
       selectedRowIndex: 0,
+      editorDirty: false,
     },
     ta: (key, params = {}) => `${key}:${params.message ?? params.name ?? ''}`,
     DEFAULT_ROUTE: [{ name: 'Location 1' }],
@@ -79,7 +82,9 @@ function createDeps(overrides = {}) {
     },
     renderGameStyleEditor: () => {},
     collectStylesFromInputs: () => ({ primary_color: '#ffffff' }),
-    refreshGameList: async () => {},
+    refreshGameList: async () => {
+      calls.refreshGameList += 1;
+    },
     populateGameSelect: () => {},
     renderRouteTabs: () => {
       calls.renderRouteTabs += 1;
@@ -89,7 +94,9 @@ function createDeps(overrides = {}) {
       calls.syncFormFromRoute.push(route);
     },
     collectRouteFromInputs: () => [{ name: 'A' }],
-    loadGameIntoEditor: async () => {},
+    loadGameIntoEditor: async (slug) => {
+      calls.loadGameIntoEditor.push(slug);
+    },
     ...overrides,
   };
 
@@ -120,6 +127,27 @@ test('auth handlers update status for missing credentials and github redirect su
   } finally {
     globalThis.window = originalWindow;
   }
+});
+
+test('refreshUserState skips editor reload when dirty unless explicitly allowed', async () => {
+  const { deps, calls } = createDeps();
+  const actions = createActionsSections(deps);
+
+  deps.state.currentSlug = 'demo';
+  deps.state.editorDirty = true;
+  await actions.refreshUserState();
+  assert.equal(calls.refreshGameList, 1);
+  assert.equal(calls.loadGameIntoEditor.length, 0);
+
+  deps.state.editorDirty = false;
+  await actions.refreshUserState();
+  assert.equal(calls.refreshGameList, 2);
+  assert.deepEqual(calls.loadGameIntoEditor, ['demo']);
+
+  deps.state.editorDirty = true;
+  await actions.refreshUserState({ reloadEditor: false });
+  assert.equal(calls.refreshGameList, 3);
+  assert.deepEqual(calls.loadGameIntoEditor, ['demo']);
 });
 
 test('handleSaveDisplayName saves payment + offline flags', async () => {

@@ -82,12 +82,15 @@ export function createActionsSections({
   /**
    * Refresh user session state and reload editable game data.
    */
-  async function refreshUserState() {
+  async function refreshUserState(options = {}) {
+    const { reloadEditor = true } = options;
     if (!hasSupabaseConfig) { updateAuthUi(); return; }
     state.user = await getCurrentUser();
     updateAuthUi();
     await refreshGameList();
-    if (state.currentSlug) await loadGameIntoEditor(state.currentSlug);
+    if (reloadEditor && state.currentSlug && !state.editorDirty) {
+      await loadGameIntoEditor(state.currentSlug);
+    }
   }
 
   /**
@@ -212,6 +215,7 @@ export function createActionsSections({
        if (g) g.display_name = name;
        populateGameSelect();
        els.gameSelect.value = state.currentSlug;
+        state.editorDirty = false;
        setStatus(ta('nameSaved'));
      } catch (err) {
        setStatus(err.message, true);
@@ -228,6 +232,7 @@ export function createActionsSections({
       const styles = collectStylesFromInputs();
       await saveGameStyles(state.currentGameId, styles);
       state.currentGameStyles = { ...styles };
+      state.editorDirty = false;
       setStatus(ta('gameStylesSaved'));
     } catch (err) {
       setStatus(ta('gameStylesSaveFailed', { message: err.message }), true);
@@ -244,6 +249,7 @@ export function createActionsSections({
       renderGameStyleEditor(DEFAULT_GAME_STYLES);
       await saveGameStyles(state.currentGameId, DEFAULT_GAME_STYLES);
       state.currentGameStyles = { ...DEFAULT_GAME_STYLES };
+      state.editorDirty = false;
       setStatus(ta('gameStylesReset'));
     } catch (err) {
       setStatus(ta('gameStylesSaveFailed', { message: err.message }), true);
@@ -272,6 +278,7 @@ export function createActionsSections({
       r.display_name = displayName;
       r.route = route;
       renderRouteTabs();
+      state.editorDirty = false;
       setStatus(ta('routeSaved'));
     } catch (err) {
       setStatus(err.message, true);
@@ -298,6 +305,7 @@ export function createActionsSections({
     syncFormFromRoute(newRoute.route);
     renderRouteTabs();
     updateAuthUi();
+    state.editorDirty = true;
     setStatus(ta('routeAddedSaveToKeep'));
   }
 
@@ -319,6 +327,7 @@ export function createActionsSections({
       syncFormFromRoute(cur.route);
       renderRouteTabs();
       updateAuthUi();
+      state.editorDirty = true;
       setStatus(ta('routeDeleted', { name: r.display_name }));
     } catch (err) {
       setStatus(err.message, true);
@@ -333,6 +342,7 @@ export function createActionsSections({
     const r = state.routes[state.currentRouteIndex];
     r.route = DEFAULT_ROUTE.slice(0, DEFAULT_ROUTE_LENGTH).map((p) => ({ ...p }));
     syncFormFromRoute(r.route);
+    state.editorDirty = true;
     setStatus(ta('defaultsRestored'));
   }
 

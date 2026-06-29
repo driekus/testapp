@@ -19,7 +19,7 @@ export function ta(key, params) {
 /**
  * Build initial in-memory state for the admin app.
  * @param {boolean} hasConfig - Whether runtime Supabase credentials are present.
- * @returns {{ games: Array, currentGameId: string | null, currentSlug: string | null, currentRequiresPayment: boolean, currentPriceInCents: number, currentSupportsOffline: boolean, currentFinalQuestion: string, currentFinalAnswer: string, currentGameStyles: object, routes: Array, currentRouteIndex: number, selectedRowIndex: number, map: object | null, markerLayer: object | null, marker: object | null, user: object | null, authStatusMessage: string }}
+ * @returns {{ games: Array, currentGameId: string | null, currentSlug: string | null, currentRequiresPayment: boolean, currentPriceInCents: number, currentSupportsOffline: boolean, currentFinalQuestion: string, currentFinalAnswer: string, currentGameStyles: object, routes: Array, currentRouteIndex: number, selectedRowIndex: number, map: object | null, markerLayer: object | null, marker: object | null, lastPickedMapLocation: {lat: number, lng: number, zoom: number | null} | null, user: object | null, authStatusMessage: string, editorDirty: boolean }}
  */
 export function createInitialState(hasConfig) {
   return {
@@ -42,6 +42,8 @@ export function createInitialState(hasConfig) {
     map: null,
     markerLayer: null,
     marker: null,
+    lastPickedMapLocation: null,
+    editorDirty: false,
     // auth
     user: null,
     authStatusMessage: hasConfig ? ta('signInToLoad') : ta('envMissing'),
