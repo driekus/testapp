@@ -193,8 +193,8 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
      els.cardOffline?.classList.add('hidden');
 
     // For free games: show the optional name prompt before enabling location.
-    // In offline mode the player already passed this gate before downloading.
-    if (state.gameId && !state.requiresPayment && !state.nameConfirmed && !state.offlineMode) {
+    // This applies to both live and offline runs so feedback can persist a display name.
+    if (state.gameId && !state.requiresPayment && !state.nameConfirmed) {
       els.cardName?.classList.remove('hidden');
       els.cardLocation?.classList.add('hidden');
       els.cardTarget?.classList.add('hidden');

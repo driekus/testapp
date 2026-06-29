@@ -7,6 +7,12 @@ import {
   buildRankingsUrl,
   setScoreDisplayNameBySession,
 } from './scoreService.js';
+import {
+  flushPendingScoreNameUpdate,
+  isSameScoreNameUpdate,
+  readPendingScoreNameUpdate,
+  writePendingScoreNameUpdate,
+} from './scoreNameSync.js';
 import { buildFeedbackContext, buildScoreNameOperation, parseFeedbackSession } from './feedbackCore.js';
 import {
   buildFeedbackPageCopy,
@@ -147,9 +153,16 @@ async function doSetScoreDisplayName() {
   });
   if (!op) return;
 
+  const pending = readPendingScoreNameUpdate();
+  if (isSameScoreNameUpdate(pending, op.payload)) {
+    return;
+  }
+
   try {
     await setScoreDisplayNameBySession(op.payload);
+    writePendingScoreNameUpdate(null);
   } catch (err) {
+    writePendingScoreNameUpdate(op.payload);
     console.warn('feedback: could not set display name', err);
   }
 }
@@ -160,6 +173,12 @@ const submitBtn = document.querySelector('#submit-feedback-btn');
 const skipBtn   = document.querySelector('#skip-feedback-btn');
 const textarea  = document.querySelector('#feedback-text');
 const statusEl  = document.querySelector('#feedback-status');
+
+void flushPendingScoreNameUpdate({
+  sendUpdate: setScoreDisplayNameBySession,
+}).catch((err) => {
+  console.warn('feedback: could not flush pending display name update', err);
+});
 
 submitBtn.addEventListener('click', async () => {
   const message = textarea.value.trim();

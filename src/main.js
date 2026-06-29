@@ -833,9 +833,8 @@ async function loadGame() {
         state.winnerName = winnerName;
         state.winnerPhone = winnerPhone;
       } else {
-        // Free game: name prompt is needed only in live mode.
-        // Offline mode is entered after an explicit download flow that already passed this step.
-        state.nameConfirmed = Boolean(useOfflineCache);
+        // Free game: always keep the optional name gate active until the player confirms it.
+        state.nameConfirmed = false;
       }
 
       // Load game data from cache if available, otherwise from server
@@ -902,8 +901,9 @@ async function loadGame() {
           state.totalAnswerTimeMs = Number(saved.totalAnswerTimeMs) || 0;
           state.questionStartedAt = saved.questionStartedAt ?? 0;
           state.statusMessage = tm('sessionRestored');
-          // Restored sessions should not re-show the free-name gate.
-          state.nameConfirmed = true;
+          state.nameConfirmed = state.requiresPayment
+            ? true
+            : Boolean(saved.nameConfirmed ?? false);
           state.sessionRestored = true;
           state.offlineMode = Boolean(saved.offlineMode);
           state.finalQuestionPrompt = String(saved.finalQuestionPrompt ?? state.finalQuestionPrompt ?? '').trim();
@@ -1055,16 +1055,19 @@ if (!slug) {
      }
    });
    // ...existing code...
-  els.startWithName?.addEventListener('click', () => {
+  function confirmPlayerName() {
     state.playerDisplayName = els.playerNameInput?.value.trim() || '';
     state.nameConfirmed = true;
+    saveSession();
     updateUi();
+  }
+
+  els.startWithName?.addEventListener('click', () => {
+    confirmPlayerName();
   });
   els.playerNameInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
-      state.playerDisplayName = els.playerNameInput.value.trim() || '';
-      state.nameConfirmed = true;
-      updateUi();
+      confirmPlayerName();
     }
   });
   els.confirmLetter.addEventListener('click', confirmLetter);

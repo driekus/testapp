@@ -32,6 +32,7 @@ export function createSessionStore({ sessionKey, storage, state }) {
         playerSessionId: state.playerSessionId,
         scoreSessionToken: state.scoreSessionToken,
         playerDisplayName: state.playerDisplayName,
+        nameConfirmed: state.nameConfirmed,
         score: state.score,
         lastScoreDelta: state.lastScoreDelta,
         totalAnswerTimeMs: state.totalAnswerTimeMs,

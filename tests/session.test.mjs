@@ -19,6 +19,7 @@ function createState() {
     playerSessionId: 'session-1',
     scoreSessionToken: 'signed-session-token',
     playerDisplayName: 'Dirk',
+    nameConfirmed: true,
     score: 10,
     lastScoreDelta: 2,
     totalAnswerTimeMs: 1000,
@@ -58,6 +59,7 @@ test('saveSession writes serialized state and loadSavedSession reads it', () => 
   assert.deepEqual(saved.collectedLetters, ['A', 'B']);
   assert.equal(saved.score, 10);
   assert.equal(saved.scoreSessionToken, 'signed-session-token');
+  assert.equal(saved.nameConfirmed, true);
 });
 
 test('clearSession removes saved payload', () => {

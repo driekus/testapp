@@ -314,7 +314,7 @@ test('updateUi shows optional name gate for free games before start', () => {
   fixture.restore();
 });
 
-test('updateUi does not re-show free-name gate in offline mode', () => {
+test('updateUi still shows free-name gate in offline mode until confirmed', () => {
   const fixture = createFixture();
   const state = {
     ...baseState(),
@@ -343,8 +343,8 @@ test('updateUi does not re-show free-name gate in offline mode', () => {
   ui.setElements(els);
   ui.updateUi();
 
-  assert.equal(els.cardName.classList.contains('hidden'), true);
-  assert.equal(els.cardLocation.classList.contains('hidden'), false);
+  assert.equal(els.cardName.classList.contains('hidden'), false);
+  assert.equal(els.cardLocation.classList.contains('hidden'), true);
 
   fixture.restore();
 });
