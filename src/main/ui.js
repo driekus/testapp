@@ -287,7 +287,7 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
     els.cardProgress?.classList.toggle('hidden', focusStatus);
 
     if (els.gameTitle) els.gameTitle.textContent = state.displayName || tm('title');
-    if (els.configStatus) els.configStatus.textContent = state.configStatus;
+    //if (els.configStatus) els.configStatus.textContent = state.configStatus;
     if (els.rankingsLink) {
       const showRankings = Boolean(state.gameId);
       els.rankingsLink.href = buildRankingsUrl(slug);
