@@ -8,6 +8,7 @@ import {
   ATTEMPTS_STORAGE_KEY,
   buildAttemptScopeKey,
   getStoredAttemptForScope,
+  hasMeaningfulAnswerInput,
   readAttemptStore as readAttemptStoreCore,
   rememberAttemptInStore,
   writeAttemptStore as writeAttemptStoreCore,
@@ -79,6 +80,7 @@ if (answerInput) {
 }
 if (submitBtn) submitBtn.textContent = tm('finalQuestionSubmit');
 if (continueBtn) continueBtn.textContent = tm('finalQuestionContinue');
+updateSubmitEnabled();
 
 if (offlineMode && offlineNoticeEl) {
   offlineNoticeEl.textContent = tm('finalQuestionOfflineNotice');
@@ -94,6 +96,15 @@ addOfflineBeforeUnloadGuard({
 function setContinueEnabled(enabled) {
   if (!continueBtn) return;
   continueBtn.disabled = !enabled;
+}
+
+function updateSubmitEnabled() {
+  if (!submitBtn) return;
+  if (answerLocked || answerInput?.disabled) {
+    submitBtn.disabled = true;
+    return;
+  }
+  submitBtn.disabled = !hasMeaningfulAnswerInput(answerInput?.value);
 }
 
 function readAttemptStore() {
@@ -263,9 +274,9 @@ async function submitFinalQuestion() {
     } catch (err) {
       statusEl.textContent = `${tm('serverError')}: ${String(err?.message || err)}`;
       statusEl.classList.remove('hidden');
-      submitBtn.disabled = false;
       submitBtn.textContent = tm('finalQuestionSubmit');
       answerInput.disabled = false;
+      updateSubmitEnabled();
       return;
     }
 
@@ -275,9 +286,9 @@ async function submitFinalQuestion() {
     if (!response.ok) {
       statusEl.textContent = toClientErrorMessage(json?.error, response.statusText || tm('serverError'));
       statusEl.classList.remove('hidden');
-      submitBtn.disabled = false;
       submitBtn.textContent = tm('finalQuestionSubmit');
       answerInput.disabled = false;
+      updateSubmitEnabled();
       return;
     }
 
@@ -303,14 +314,18 @@ async function submitFinalQuestion() {
   } catch (err) {
     statusEl.textContent = String(err?.message || tm('serverError'));
     statusEl.classList.remove('hidden');
-    submitBtn.disabled = false;
     submitBtn.textContent = tm('finalQuestionSubmit');
     answerInput.disabled = false;
+    updateSubmitEnabled();
   }
 }
 
 submitBtn?.addEventListener('click', () => {
   void submitFinalQuestion();
+});
+
+answerInput?.addEventListener('input', () => {
+  updateSubmitEnabled();
 });
 
 answerInput?.addEventListener('keydown', (event) => {

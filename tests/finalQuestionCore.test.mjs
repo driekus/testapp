@@ -5,6 +5,7 @@ import {
   ATTEMPTS_STORAGE_KEY,
   buildAttemptScopeKey,
   getStoredAttemptForScope,
+  hasMeaningfulAnswerInput,
   readAttemptStore,
   rememberAttemptInStore,
   writeAttemptStore,
@@ -14,6 +15,14 @@ test('buildAttemptScopeKey scopes by game and session', () => {
   assert.equal(buildAttemptScopeKey('g1', 's1'), 'g1::s1');
   assert.equal(buildAttemptScopeKey('g1', 's2'), 'g1::s2');
   assert.notEqual(buildAttemptScopeKey('g1', 's1'), buildAttemptScopeKey('g2', 's1'));
+});
+
+test('hasMeaningfulAnswerInput rejects empty and whitespace-only answers', () => {
+  assert.equal(hasMeaningfulAnswerInput(''), false);
+  assert.equal(hasMeaningfulAnswerInput('   '), false);
+  assert.equal(hasMeaningfulAnswerInput('\n\t  '), false);
+  assert.equal(hasMeaningfulAnswerInput('A'), true);
+  assert.equal(hasMeaningfulAnswerInput('  answer  '), true);
 });
 
 test('read/write attempt store handles valid and invalid storage payloads', () => {

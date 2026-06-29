@@ -1,5 +1,9 @@
 export const ATTEMPTS_STORAGE_KEY = 'letter-quest-final-question-attempts';
 
+export function hasMeaningfulAnswerInput(value) {
+  return String(value ?? '').trim().length > 0;
+}
+
 export function buildAttemptScopeKey(gameId, playerSessionId) {
   return `${String(gameId ?? '')}::${String(playerSessionId ?? '')}`;
 }
