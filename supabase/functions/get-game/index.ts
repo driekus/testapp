@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
       question: firstLocation.question ?? '',
       max_attempts: firstLocation.max_attempts ?? 0,
       description: firstLocation.description ?? '',
-      question_hint: firstLocation.question_hint ?? firstLocation.description ?? '',
+      question_hint: firstLocation.question_hint ?? '',
     } : null;
 
     return Response.json(
