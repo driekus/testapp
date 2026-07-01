@@ -1,3 +1,77 @@
+const OFFLINE_ACTIVATION_STORAGE_KEY = 'letter-quest-offline-activation';
+const OFFLINE_ACTIVATION_MAX_AGE_MS = 5 * 60 * 1000;
+
+/**
+ * Extract reusable free-player identity from a saved session snapshot.
+ * Used only during the immediate reload into offline mode after a successful download.
+ *
+ * @param {Record<string, unknown> | null} savedSession
+ * @returns {{ playerDisplayName: string, nameConfirmed: boolean } | null}
+ */
+export function getReusableFreePlayerIdentity(savedSession) {
+  if (!savedSession || savedSession.v !== 1) return null;
+
+  return {
+    playerDisplayName: typeof savedSession.playerDisplayName === 'string'
+      ? savedSession.playerDisplayName
+      : '',
+    nameConfirmed: Boolean(savedSession.nameConfirmed),
+  };
+}
+
+/**
+ * Mark that the current page is about to reload into freshly downloaded offline mode.
+ *
+ * @param {Storage} storage
+ * @param {string} slug
+ * @param {number} [now=Date.now()]
+ */
+export function markOfflineActivationRequested(storage, slug, now = Date.now()) {
+  if (!storage || !slug) return;
+  try {
+    storage.setItem(OFFLINE_ACTIVATION_STORAGE_KEY, JSON.stringify({
+      slug,
+      requestedAt: now,
+    }));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+/**
+ * Consume a one-time offline activation marker for the given slug.
+ * Returns true only for a recent, matching request, and clears the marker either way.
+ *
+ * @param {Storage} storage
+ * @param {string} slug
+ * @param {number} [now=Date.now()]
+ * @returns {boolean}
+ */
+export function consumeOfflineActivationRequest(storage, slug, now = Date.now()) {
+  if (!storage || !slug) return false;
+
+  try {
+    const raw = storage.getItem(OFFLINE_ACTIVATION_STORAGE_KEY);
+    storage.removeItem(OFFLINE_ACTIVATION_STORAGE_KEY);
+    if (!raw) return false;
+
+    const parsed = JSON.parse(raw);
+    const requestedAt = Number(parsed?.requestedAt);
+    if (parsed?.slug !== slug || !Number.isFinite(requestedAt)) {
+      return false;
+    }
+
+    return requestedAt <= now && (now - requestedAt) <= OFFLINE_ACTIVATION_MAX_AGE_MS;
+  } catch {
+    try {
+      storage.removeItem(OFFLINE_ACTIVATION_STORAGE_KEY);
+    } catch {
+      // Ignore storage failures.
+    }
+    return false;
+  }
+}
+
 /**
  * Create local session persistence helpers.
  *

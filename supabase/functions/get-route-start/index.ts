@@ -91,6 +91,7 @@ Deno.serve(async (req) => {
           question: first.question ?? '',
           max_attempts: first.max_attempts ?? 0,
           description: first.description ?? '',
+          question_hint: first.question_hint ?? first.description ?? '',
         },
       },
       { headers: CORS },

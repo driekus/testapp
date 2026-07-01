@@ -159,6 +159,7 @@ export function createRouteEditorSections({
     addLabeledInput(ta('latitude'), 'number', 'lat', point.lat, { step: 'any' });
     addLabeledInput(ta('longitude'), 'number', 'lng', point.lng, { step: 'any' });
     addLabeledInput(ta('description'), 'text', 'description', point.description ?? '', { placeholder: ta('descriptionPlaceholder') });
+    addLabeledInput(ta('questionHint'), 'text', 'question_hint', point.question_hint ?? '', { placeholder: ta('questionHintPlaceholder') });
     addLabeledInput(ta('question'), 'text', 'question', point.question ?? '', { placeholder: ta('questionPlaceholder') });
     addLabeledInput(ta('answer'), 'text', 'answer', point.answer ?? '', { placeholder: ta('answerPlaceholder') });
     addLabeledInput(ta('maxAttempts'), 'number', 'max_attempts', point.max_attempts ?? 0, { min: 0, step: '1' });
@@ -241,6 +242,7 @@ export function createRouteEditorSections({
       lng: document.querySelector(`input[data-field="lng"][data-row-index="${index}"]`),
       image_url: document.querySelector(`input[data-field="image_url"][data-row-index="${index}"]`),
       description: document.querySelector(`input[data-field="description"][data-row-index="${index}"]`),
+      question_hint: document.querySelector(`input[data-field="question_hint"][data-row-index="${index}"]`),
       question: document.querySelector(`input[data-field="question"][data-row-index="${index}"]`),
       answer: document.querySelector(`input[data-field="answer"][data-row-index="${index}"]`),
       max_attempts: document.querySelector(`input[data-field="max_attempts"][data-row-index="${index}"]`),
@@ -288,6 +290,7 @@ export function createRouteEditorSections({
         name, lat, lng, letter,
         image_url: ri.image_url?.value ?? '',
         description: ri.description?.value.trim() ?? '',
+        question_hint: ri.question_hint?.value.trim() ?? '',
         question: ri.question?.value.trim() ?? '',
         answer: ri.answer?.value.trim() ?? '',
         max_attempts: Math.max(0, Math.floor(Number(ri.max_attempts?.value) || 0)),

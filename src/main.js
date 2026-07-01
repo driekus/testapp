@@ -25,7 +25,12 @@ import {
   verifyPaymentToken,
 } from './payment.js';
 import { createUiController } from './main/ui.js';
-import { createSessionStore } from './main/session.js';
+import {
+  consumeOfflineActivationRequest,
+  createSessionStore,
+  getReusableFreePlayerIdentity,
+  markOfflineActivationRequested,
+} from './main/session.js';
 import { resolvePaymentAccess } from './main/paymentGate.js';
 import { createLocationTracking } from './main/locationTracking.js';
 import { downloadGameOffline, loadCachedGame } from './main/offlineSync.js';
@@ -781,6 +786,11 @@ async function loadGame() {
       // Check if offline cache exists for this game
       const cachedData = await loadCachedGame(slug);
       const useOfflineCache = cachedData && state.supportsOffline;
+      const saved = loadSavedSession();
+      const reusableFreeIdentity = !state.requiresPayment && useOfflineCache
+        && consumeOfflineActivationRequest(sessionStorage, slug)
+        ? getReusableFreePlayerIdentity(saved)
+        : null;
       state.offlineMode = Boolean(useOfflineCache);
       if (!state.offlineMode) {
         state.offlineCacheExpiry = null;
@@ -833,8 +843,10 @@ async function loadGame() {
         state.winnerName = winnerName;
         state.winnerPhone = winnerPhone;
       } else {
-        // Free game: always keep the optional name gate active until the player confirms it.
-        state.nameConfirmed = false;
+        // Free game: keep the optional name gate active unless this is the immediate
+        // post-download reload into offline mode, where only the saved identity may carry over.
+        state.playerDisplayName = reusableFreeIdentity?.playerDisplayName ?? '';
+        state.nameConfirmed = reusableFreeIdentity?.nameConfirmed ?? false;
       }
 
       // Load game data from cache if available, otherwise from server
@@ -870,7 +882,6 @@ async function loadGame() {
         state.statusMessage = tm('tapToBegin');
         state.sessionRestored = false;
       } else {
-        const saved = loadSavedSession();
         const liveIds = game.routes.map((r) => r.id).join(',');
         const savedIds = saved?.gameRoutes?.map((r) => r.id).join(',');
         const compatible =
@@ -1043,6 +1054,7 @@ if (!slug) {
      try {
        const result = await downloadGameOffline(slug, state.paymentToken);
        if (result.success) {
+          markOfflineActivationRequested(sessionStorage, slug);
          // Re-run load flow so cached full route (including answers) is applied.
          window.location.reload();
          return;

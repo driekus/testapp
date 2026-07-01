@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createSessionStore } from '../src/main/session.js';
+import {
+  consumeOfflineActivationRequest,
+  createSessionStore,
+  getReusableFreePlayerIdentity,
+  markOfflineActivationRequested,
+} from '../src/main/session.js';
 
 function createState() {
   return {
@@ -18,7 +23,7 @@ function createState() {
     playerId: 'player-1',
     playerSessionId: 'session-1',
     scoreSessionToken: 'signed-session-token',
-    playerDisplayName: 'Dirk',
+    playerDisplayName: 'Barrie',
     nameConfirmed: true,
     score: 10,
     lastScoreDelta: 2,
@@ -135,5 +140,40 @@ test('loadSavedSession returns null when JSON is invalid', () => {
   });
 
   assert.equal(store.loadSavedSession(), null);
+});
+
+test('getReusableFreePlayerIdentity returns only free-player identity fields', () => {
+  const reusable = getReusableFreePlayerIdentity({
+    v: 1,
+    playerDisplayName: 'Barrie',
+    nameConfirmed: true,
+    currentRouteIndex: 9,
+    collectedLetters: ['X'],
+  });
+
+  assert.deepEqual(reusable, {
+    playerDisplayName: 'Barrie',
+    nameConfirmed: true,
+  });
+});
+
+test('getReusableFreePlayerIdentity rejects missing or incompatible saved sessions', () => {
+  assert.equal(getReusableFreePlayerIdentity(null), null);
+  assert.equal(getReusableFreePlayerIdentity({ v: 2, playerDisplayName: 'Barrie' }), null);
+});
+
+test('offline activation request is one-time, slug-scoped and time-limited', () => {
+  const storage = createMemoryStorage();
+
+  markOfflineActivationRequested(storage, 'demo', 1_000);
+  assert.equal(consumeOfflineActivationRequest(storage, 'other', 1_100), false);
+  assert.equal(consumeOfflineActivationRequest(storage, 'demo', 1_100), false);
+
+  markOfflineActivationRequested(storage, 'demo', 2_000);
+  assert.equal(consumeOfflineActivationRequest(storage, 'demo', 2_100), true);
+  assert.equal(consumeOfflineActivationRequest(storage, 'demo', 2_200), false);
+
+  markOfflineActivationRequested(storage, 'demo', 3_000);
+  assert.equal(consumeOfflineActivationRequest(storage, 'demo', 3_000 + (5 * 60 * 1000) + 1), false);
 });
 

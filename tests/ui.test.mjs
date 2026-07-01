@@ -349,6 +349,42 @@ test('updateUi still shows free-name gate in offline mode until confirmed', () =
   fixture.restore();
 });
 
+test('updateUi shows offline download card before the free-name gate on fresh starts', () => {
+  const fixture = createFixture();
+  const state = {
+    ...baseState(),
+    gameId: 'game-1',
+    requiresPayment: false,
+    supportsOffline: true,
+    offlineMode: false,
+    nameConfirmed: false,
+    geoWatchId: null,
+    sessionRestored: false,
+  };
+
+  const ui = createUiController({
+    state,
+    tm: (key) => key,
+    formatEuro: (cents) => `EUR ${cents}`,
+    buildRankingsUrl: (slug) => `/rankings.html?slug=${slug}`,
+    slug: 'demo',
+    distanceMeters: () => 10,
+    constants: {
+      LOCATION_RADIUS_METERS: 5,
+      MAX_ALLOWED_GPS_ACCURACY_METERS: 11,
+    },
+  });
+
+  const els = ui.getEls();
+  ui.setElements(els);
+  ui.updateUi();
+
+  assert.equal(els.cardOffline.classList.contains('hidden'), false);
+  assert.equal(els.cardName.classList.contains('hidden'), true);
+
+  fixture.restore();
+});
+
 test('updateUi keeps offline download card hidden for restored sessions', () => {
   const fixture = createFixture();
   const state = {
@@ -398,7 +434,8 @@ test('updateUi renders question hint assets and toggles visibility', () => {
       question: 'Q?',
       max_attempts: 0,
       image_url: 'https://img/hint.png',
-      description: 'Hint text',
+      description: 'Target description',
+      question_hint: 'Hint text',
     }],
     pendingQuestion: true,
     hintVisible: true,
@@ -431,6 +468,48 @@ test('updateUi renders question hint assets and toggles visibility', () => {
   ui.updateUi();
   assert.equal(els.questionHintImage.classList.contains('hidden'), true);
   assert.equal(els.questionHintDescription.classList.contains('hidden'), true);
+
+  fixture.restore();
+});
+
+test('updateUi question hint falls back to description for legacy data', () => {
+  const fixture = createFixture();
+  const state = {
+    ...baseState(),
+    gameId: 'game-1',
+    geoWatchId: 1,
+    gameRoutes: [{ id: 'r1', display_name: 'Route 1' }],
+    route: [{
+      name: 'Target 1',
+      lat: 1,
+      lng: 2,
+      question: 'Q?',
+      max_attempts: 0,
+      description: 'Legacy hint text',
+    }],
+    pendingQuestion: true,
+    hintVisible: true,
+  };
+
+  const ui = createUiController({
+    state,
+    tm: (key) => key,
+    formatEuro: (cents) => `EUR ${cents}`,
+    buildRankingsUrl: (slug) => `/rankings.html?slug=${slug}`,
+    slug: 'demo',
+    distanceMeters: () => 10,
+    constants: {
+      LOCATION_RADIUS_METERS: 5,
+      MAX_ALLOWED_GPS_ACCURACY_METERS: 11,
+    },
+  });
+
+  const els = ui.getEls();
+  ui.setElements(els);
+
+  ui.updateUi();
+  assert.equal(els.questionHintDescription.classList.contains('hidden'), false);
+  assert.equal(els.questionHintDescription.textContent, 'Legacy hint text');
 
   fixture.restore();
 });
@@ -518,6 +597,98 @@ test('updateUi sets pending-letter button labels and distance unknown fallback',
   state.currentRouteIndex = 1;
   ui.updateUi();
   assert.match(els.confirmLetter.textContent, /^confirmAndFinish/);
+
+  fixture.restore();
+});
+
+test('updateUi renders target media before the question phase begins', () => {
+  const fixture = createFixture();
+  const state = {
+    ...baseState(),
+    gameId: 'game-1',
+    geoWatchId: 1,
+    gameRoutes: [{ id: 'r1', display_name: 'Route 1' }],
+    route: [{
+      name: 'Target 1',
+      lat: 1,
+      lng: 2,
+      image_url: 'https://img/target.png',
+      description: 'Look near the bridge',
+    }],
+    currentLocationIndex: 0,
+    userPosition: {
+      latitude: 1,
+      longitude: 2,
+      accuracy: 5,
+    },
+  };
+
+  const ui = createUiController({
+    state,
+    tm: (key, params = {}) => `${key}:${JSON.stringify(params)}`,
+    formatEuro: (cents) => `EUR ${cents}`,
+    buildRankingsUrl: (slug) => `/rankings.html?slug=${slug}`,
+    slug: 'demo',
+    distanceMeters: () => 0,
+    constants: {
+      LOCATION_RADIUS_METERS: 5,
+      MAX_ALLOWED_GPS_ACCURACY_METERS: 11,
+    },
+  });
+
+  const els = ui.getEls();
+  ui.setElements(els);
+  ui.updateUi();
+
+  assert.equal(els.locationImage.classList.contains('hidden'), false);
+  assert.equal(els.locationImage.src, 'https://img/target.png');
+  assert.equal(els.locationDescription.classList.contains('hidden'), false);
+  assert.equal(els.locationDescription.textContent, 'Look near the bridge');
+  assert.equal(els.distance.textContent, '');
+
+  fixture.restore();
+});
+
+test('updateUi hides distance when target has description only', () => {
+  const fixture = createFixture();
+  const state = {
+    ...baseState(),
+    gameId: 'game-1',
+    geoWatchId: 1,
+    gameRoutes: [{ id: 'r1', display_name: 'Route 1' }],
+    route: [{
+      name: 'Target 1',
+      lat: 1,
+      lng: 2,
+      description: 'Only text hint',
+    }],
+    currentLocationIndex: 0,
+    userPosition: {
+      latitude: 1,
+      longitude: 2,
+      accuracy: 5,
+    },
+  };
+
+  const ui = createUiController({
+    state,
+    tm: (key, params = {}) => `${key}:${JSON.stringify(params)}`,
+    formatEuro: (cents) => `EUR ${cents}`,
+    buildRankingsUrl: (slug) => `/rankings.html?slug=${slug}`,
+    slug: 'demo',
+    distanceMeters: () => 0,
+    constants: {
+      LOCATION_RADIUS_METERS: 5,
+      MAX_ALLOWED_GPS_ACCURACY_METERS: 11,
+    },
+  });
+
+  const els = ui.getEls();
+  ui.setElements(els);
+  ui.updateUi();
+
+  assert.equal(els.locationDescription.classList.contains('hidden'), false);
+  assert.equal(els.distance.textContent, '');
 
   fixture.restore();
 });

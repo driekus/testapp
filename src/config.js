@@ -38,7 +38,7 @@ function sanitizeLetter(value, index) {
  * Sanitize a single route point, filling missing or invalid fields with defaults.
  * @param {object} point - Raw point object from the database or form.
  * @param {number} index - Index used to look up fallback values.
- * @returns {{ name: string, lat: number, lng: number, letter: string, image_url: string, description: string, question: string, answer: string, max_attempts: number }}
+ * @returns {{ name: string, lat: number, lng: number, letter: string, image_url: string, description: string, question_hint: string, question: string, answer: string, max_attempts: number }}
  */
 function sanitizePoint(point, index) {
   const fallback = DEFAULT_ROUTE[index] ?? FALLBACK_POINT;
@@ -52,6 +52,7 @@ function sanitizePoint(point, index) {
     letter: sanitizeLetter(point?.letter, index),
     image_url: typeof point?.image_url === 'string' ? point.image_url : '',
     description: typeof point?.description === 'string' ? point.description.trim() : '',
+    question_hint: typeof point?.question_hint === 'string' ? point.question_hint.trim() : '',
     question: typeof point?.question === 'string' ? point.question.trim() : '',
     answer: typeof point?.answer === 'string' ? point.answer.trim() : '',
     max_attempts: Number.isFinite(Number(point?.max_attempts)) && Number(point?.max_attempts) > 0
@@ -65,7 +66,7 @@ function sanitizePoint(point, index) {
  * Accepts any length from 1 to MAX_ROUTE_LOCATIONS; falls back to DEFAULT_ROUTE
  * only when the input is not a non-empty array.
  * @param {unknown} candidateRoute - Raw route value from the database or admin form.
- * @returns {Array<{ name: string, lat: number, lng: number, letter: string, image_url: string, description: string, question: string, answer: string, max_attempts: number }>}
+ * @returns {Array<{ name: string, lat: number, lng: number, letter: string, image_url: string, description: string, question_hint: string, question: string, answer: string, max_attempts: number }>}
  */
 export function sanitizeRoute(candidateRoute) {
   if (!Array.isArray(candidateRoute) || candidateRoute.length < 1) {

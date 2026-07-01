@@ -171,11 +171,11 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
      if (
        state.supportsOffline &&
        !state.offlineMode &&
-       state.nameConfirmed &&
        state.geoWatchId === null &&
        !state.sessionRestored
      ) {
        els.cardOffline?.classList.remove('hidden');
+       els.cardName?.classList.add('hidden');
        els.cardTarget?.classList.add('hidden');
        els.cardProgress?.classList.add('hidden');
        els.cardLocation?.classList.add('hidden');
@@ -217,7 +217,10 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
     // While a question must be answered, show only the question card
     if (state.pendingQuestion) {
       const questionTarget = state.route[state.currentLocationIndex];
-      const hasHint = Boolean(questionTarget?.image_url || questionTarget?.description);
+      const questionHintText = String(
+        questionTarget?.question_hint ?? questionTarget?.description ?? '',
+      ).trim();
+      const hasHint = Boolean(questionTarget?.image_url || questionHintText);
       const hintVisible = hasHint && state.hintVisible;
       els.cardQuestion?.classList.remove('hidden');
       els.cardTarget?.classList.add('hidden');
@@ -237,9 +240,9 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
         els.questionHintImage.classList.add('hidden');
         els.questionHintImage.src = '';
       }
-      if (hintVisible && questionTarget?.description) {
+      if (hintVisible && questionHintText) {
         if (els.questionHintDescription) {
-          els.questionHintDescription.textContent = questionTarget.description;
+          els.questionHintDescription.textContent = questionHintText;
           els.questionHintDescription.classList.remove('hidden');
         }
       } else if (els.questionHintDescription) {
@@ -401,6 +404,21 @@ export function createUiController({ state, tm, formatEuro, buildRankingsUrl, sl
     if (els.locationDescription) {
       els.locationDescription.classList.add('hidden');
       els.locationDescription.textContent = '';
+    }
+
+    if (currentTarget.image_url && els.locationImage) {
+      els.locationImage.src = currentTarget.image_url;
+      els.locationImage.classList.remove('hidden');
+    }
+    if (currentTarget.description && els.locationDescription) {
+      els.locationDescription.textContent = currentTarget.description;
+      els.locationDescription.classList.remove('hidden');
+    }
+
+    const hasTargetMedia = Boolean(currentTarget.image_url || currentTarget.description);
+    if (hasTargetMedia) {
+      if (els.distance) els.distance.textContent = '';
+      return;
     }
 
     if (state.userPosition) {

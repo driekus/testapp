@@ -165,6 +165,9 @@ npm run dev
 
 - Sign in (email/password or GitHub if configured).
 - Edit 5 locations: name, letter, latitude, longitude.
+- Hint fields per location:
+  - `description`: shown on the target card during the location phase.
+  - `question_hint`: shown in the question hint panel during the question phase.
 - Or click **Pick from map** and click on map to fill coordinates.
 - Click **Save Settings** to save shared route config to Supabase.
 - Game page `/` loads the shared route (players do not need sign-in).

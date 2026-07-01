@@ -24,6 +24,7 @@ test('sanitizeRoute sanitizes malformed point fields', () => {
       letter: '9',
       image_url: 123,
       description: ' desc ',
+      question_hint: ' qh ',
       question: ' q ',
       answer: ' a ',
       max_attempts: '3.9',
@@ -37,6 +38,7 @@ test('sanitizeRoute sanitizes malformed point fields', () => {
   assert.equal(route[0].letter.length, 1);
   assert.equal(route[0].image_url, '');
   assert.equal(route[0].description, 'desc');
+  assert.equal(route[0].question_hint, 'qh');
   assert.equal(route[0].question, 'q');
   assert.equal(route[0].answer, 'a');
   assert.equal(route[0].max_attempts, 3);

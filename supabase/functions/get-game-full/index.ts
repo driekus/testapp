@@ -93,6 +93,7 @@ Deno.serve(async (req) => {
         answer: loc.answer ?? '',
         max_attempts: loc.max_attempts ?? 0,
         description: loc.description ?? '',
+        question_hint: loc.question_hint ?? loc.description ?? '',
         image_url: loc.image_url ?? '',
       })),
     }));

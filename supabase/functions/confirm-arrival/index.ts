@@ -93,6 +93,7 @@ Deno.serve(async (req) => {
           max_attempts: route[location_index + 1].max_attempts ?? 0,
           image_url: route[location_index + 1].image_url ?? null,
           description: route[location_index + 1].description ?? '',
+          question_hint: route[location_index + 1].question_hint ?? route[location_index + 1].description ?? '',
         }
       : null;
 
